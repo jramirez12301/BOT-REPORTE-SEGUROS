@@ -10,6 +10,8 @@ from gspread.utils import rowcol_to_a1
 from google.oauth2.service_account import Credentials
 from dotenv import load_dotenv
 
+# DESARROLLO
+
 # Cargar variables de entorno desde .env
 load_dotenv()
 
