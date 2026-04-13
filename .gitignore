@@ -1,0 +1,28 @@
+# Entorno Virtual
+venv/
+.venv/
+env/
+bin/
+include/
+lib/
+share/
+
+# Secretos (¡NO SUBIR AL REPOSITORIO!)
+.env
+credentials.json
+
+# Archivos de Estado y Logs
+watermark.json
+etl.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db

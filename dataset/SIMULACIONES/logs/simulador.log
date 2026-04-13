@@ -1,0 +1,56 @@
+2026-04-10 17:24:06,441 | INFO | Iniciando simulador | source=replay mode=db
+2026-04-10 17:24:06,444 | WARNING | Falló lectura replay | archivo=historial_completo_normalizado.csv | encoding=cp1252 | strategy={'sep': ',', 'engine': 'python'} | error=Expected 1 fields in line 40, saw 2
+2026-04-10 17:24:06,448 | INFO | Replay leído OK | archivo=historial_completo_normalizado.csv | encoding=cp1252 | strategy={'sep': None, 'engine': 'python'}
+2026-04-10 17:24:06,467 | INFO | Stream construido | eventos=7
+2026-04-10 17:24:06,469 | INFO | Replay parser | encoding=cp1252 strategy={'sep': None, 'engine': 'python'} read_attempts=2
+2026-04-10 17:24:20,645 | INFO | Historial JSON guardado en C:\Users\javier.ramirez\Documents\Trabajo Javier\Reparacion de Reporte Seguros\Entorno\dataset\SIMULACIONES\simulacion_20260410_172420_replay_db.json
+2026-04-10 17:24:20,646 | INFO | Expected Change Log guardado en C:\Users\javier.ramirez\Documents\Trabajo Javier\Reparacion de Reporte Seguros\Entorno\dataset\SIMULACIONES\expected_changes_20260410_172420.json
+2026-04-10 17:24:20,646 | INFO | QA Summary Markdown guardado en C:\Users\javier.ramirez\Documents\Trabajo Javier\Reparacion de Reporte Seguros\Entorno\dataset\SIMULACIONES\qa_summary_20260410_172420.md
+2026-04-10 17:24:35,461 | INFO | Iniciando simulador | source=replay mode=db
+2026-04-10 17:24:35,466 | WARNING | Falló lectura replay | archivo=historial_completo_normalizado.csv | encoding=cp1252 | strategy={'sep': ',', 'engine': 'python'} | error=Expected 1 fields in line 40, saw 2
+2026-04-10 17:24:35,477 | INFO | Replay leído OK | archivo=historial_completo_normalizado.csv | encoding=cp1252 | strategy={'sep': None, 'engine': 'python'}
+2026-04-10 17:24:35,515 | INFO | Stream construido | eventos=7
+2026-04-10 17:24:35,515 | INFO | Replay parser | encoding=cp1252 strategy={'sep': None, 'engine': 'python'} read_attempts=2
+2026-04-10 17:24:49,700 | INFO | Historial JSON guardado en C:\Users\javier.ramirez\Documents\Trabajo Javier\Reparacion de Reporte Seguros\Entorno\dataset\SIMULACIONES\simulacion_20260410_172449_replay_db.json
+2026-04-10 17:24:49,702 | INFO | Expected Change Log guardado en C:\Users\javier.ramirez\Documents\Trabajo Javier\Reparacion de Reporte Seguros\Entorno\dataset\SIMULACIONES\expected_changes_20260410_172449.json
+2026-04-10 17:24:49,702 | INFO | QA Summary Markdown guardado en C:\Users\javier.ramirez\Documents\Trabajo Javier\Reparacion de Reporte Seguros\Entorno\dataset\SIMULACIONES\qa_summary_20260410_172449.md
+2026-04-10 17:33:26,738 | INFO | Iniciando simulador | source=replay mode=db
+2026-04-10 17:33:26,738 | WARNING | Falló lectura replay | archivo=historial_completo_normalizado.csv | encoding=cp1252 | strategy={'sep': ',', 'engine': 'python'} | error=Expected 1 fields in line 40, saw 2
+2026-04-10 17:33:26,753 | INFO | Replay leído OK | archivo=historial_completo_normalizado.csv | encoding=cp1252 | strategy={'sep': None, 'engine': 'python'}
+2026-04-10 17:33:26,774 | INFO | Stream construido | eventos=12
+2026-04-10 17:33:26,778 | INFO | Replay parser | encoding=cp1252 strategy={'sep': None, 'engine': 'python'} read_attempts=2
+2026-04-10 17:33:27,003 | INFO | Historial JSON guardado en C:\Users\javier.ramirez\Documents\Trabajo Javier\Reparacion de Reporte Seguros\Entorno\dataset\SIMULACIONES\simulacion_20260410_173326_replay_db.json
+2026-04-10 17:33:27,004 | INFO | Expected Change Log guardado en C:\Users\javier.ramirez\Documents\Trabajo Javier\Reparacion de Reporte Seguros\Entorno\dataset\SIMULACIONES\expected_changes_20260410_173326.json
+2026-04-10 17:33:27,004 | INFO | QA Summary Markdown guardado en C:\Users\javier.ramirez\Documents\Trabajo Javier\Reparacion de Reporte Seguros\Entorno\dataset\SIMULACIONES\qa_summary_20260410_173326.md
+2026-04-10 17:37:51,802 | INFO | Iniciando simulador | source=replay mode=db
+2026-04-10 17:37:51,805 | WARNING | Falló lectura replay | archivo=historial_completo_normalizado.csv | encoding=cp1252 | strategy={'sep': ',', 'engine': 'python'} | error=Expected 1 fields in line 40, saw 2
+2026-04-10 17:37:51,809 | INFO | Replay leído OK | archivo=historial_completo_normalizado.csv | encoding=cp1252 | strategy={'sep': None, 'engine': 'python'}
+2026-04-10 17:37:51,834 | INFO | Stream construido | eventos=12
+2026-04-10 17:37:51,834 | INFO | Replay parser | encoding=cp1252 strategy={'sep': None, 'engine': 'python'} read_attempts=2
+2026-04-10 17:37:52,054 | INFO | Historial JSON guardado en C:\Users\javier.ramirez\Documents\Trabajo Javier\Reparacion de Reporte Seguros\Entorno\dataset\SIMULACIONES\simulacion_20260410_173752_replay_db.json
+2026-04-10 17:37:52,055 | INFO | Expected Change Log guardado en C:\Users\javier.ramirez\Documents\Trabajo Javier\Reparacion de Reporte Seguros\Entorno\dataset\SIMULACIONES\expected_changes_20260410_173752.json
+2026-04-10 17:37:52,055 | INFO | QA Summary Markdown guardado en C:\Users\javier.ramirez\Documents\Trabajo Javier\Reparacion de Reporte Seguros\Entorno\dataset\SIMULACIONES\qa_summary_20260410_173752.md
+2026-04-13 08:53:32,597 | INFO | Iniciando simulador | source=replay mode=db
+2026-04-13 08:53:32,602 | WARNING | Falló lectura replay | archivo=historial_completo_normalizado.csv | encoding=cp1252 | strategy={'sep': ',', 'engine': 'python'} | error=Expected 1 fields in line 40, saw 2
+2026-04-13 08:53:32,619 | INFO | Replay leído OK | archivo=historial_completo_normalizado.csv | encoding=cp1252 | strategy={'sep': None, 'engine': 'python'}
+2026-04-13 08:53:32,648 | INFO | Stream construido | eventos=20
+2026-04-13 08:53:32,649 | INFO | Replay parser | encoding=cp1252 strategy={'sep': None, 'engine': 'python'} read_attempts=2
+2026-04-13 08:53:33,131 | INFO | Historial JSON guardado en C:\Users\javier.ramirez\Documents\Trabajo Javier\Reparacion de Reporte Seguros\Entorno\dataset\SIMULACIONES\simulacion_20260413_085333_replay_db.json
+2026-04-13 08:53:33,131 | INFO | Expected Change Log guardado en C:\Users\javier.ramirez\Documents\Trabajo Javier\Reparacion de Reporte Seguros\Entorno\dataset\SIMULACIONES\expected_changes_20260413_085333.json
+2026-04-13 08:53:33,132 | INFO | QA Summary Markdown guardado en C:\Users\javier.ramirez\Documents\Trabajo Javier\Reparacion de Reporte Seguros\Entorno\dataset\SIMULACIONES\qa_summary_20260413_085333.md
+2026-04-13 09:37:17,541 | INFO | Iniciando simulador | source=replay mode=db
+2026-04-13 09:37:17,545 | WARNING | Falló lectura replay | archivo=historial_completo_normalizado.csv | encoding=cp1252 | strategy={'sep': ',', 'engine': 'python'} | error=Expected 1 fields in line 40, saw 2
+2026-04-13 09:37:17,560 | INFO | Replay leído OK | archivo=historial_completo_normalizado.csv | encoding=cp1252 | strategy={'sep': None, 'engine': 'python'}
+2026-04-13 09:37:17,585 | INFO | Stream construido | eventos=5
+2026-04-13 09:37:17,586 | INFO | Replay parser | encoding=cp1252 strategy={'sep': None, 'engine': 'python'} read_attempts=2
+2026-04-13 09:37:18,267 | INFO | Historial JSON guardado en C:\Users\javier.ramirez\Documents\Trabajo Javier\Reparacion de Reporte Seguros\Entorno\dataset\SIMULACIONES\simulacion_20260413_093718_replay_db.json
+2026-04-13 09:37:18,267 | INFO | Expected Change Log guardado en C:\Users\javier.ramirez\Documents\Trabajo Javier\Reparacion de Reporte Seguros\Entorno\dataset\SIMULACIONES\expected_changes_20260413_093718.json
+2026-04-13 09:37:18,268 | INFO | QA Summary Markdown guardado en C:\Users\javier.ramirez\Documents\Trabajo Javier\Reparacion de Reporte Seguros\Entorno\dataset\SIMULACIONES\qa_summary_20260413_093718.md
+2026-04-13 09:48:52,253 | INFO | Iniciando simulador | source=replay mode=db
+2026-04-13 09:48:52,261 | WARNING | Falló lectura replay | archivo=historial_completo_normalizado.csv | encoding=cp1252 | strategy={'sep': ',', 'engine': 'python'} | error=Expected 1 fields in line 40, saw 2
+2026-04-13 09:48:52,284 | INFO | Replay leído OK | archivo=historial_completo_normalizado.csv | encoding=cp1252 | strategy={'sep': None, 'engine': 'python'}
+2026-04-13 09:48:52,316 | INFO | Stream construido | eventos=8
+2026-04-13 09:48:52,316 | INFO | Replay parser | encoding=cp1252 strategy={'sep': None, 'engine': 'python'} read_attempts=2
+2026-04-13 09:48:52,609 | INFO | Historial JSON guardado en C:\Users\javier.ramirez\Documents\Trabajo Javier\Reparacion de Reporte Seguros\Entorno\dataset\SIMULACIONES\simulacion_20260413_094852_replay_db.json
+2026-04-13 09:48:52,609 | INFO | Expected Change Log guardado en C:\Users\javier.ramirez\Documents\Trabajo Javier\Reparacion de Reporte Seguros\Entorno\dataset\SIMULACIONES\expected_changes_20260413_094852.json
+2026-04-13 09:48:52,610 | INFO | QA Summary Markdown guardado en C:\Users\javier.ramirez\Documents\Trabajo Javier\Reparacion de Reporte Seguros\Entorno\dataset\SIMULACIONES\qa_summary_20260413_094852.md
