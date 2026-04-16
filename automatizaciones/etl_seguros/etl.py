@@ -10,7 +10,7 @@ from gspread.utils import rowcol_to_a1
 from google.oauth2.service_account import Credentials
 from dotenv import load_dotenv
 
-# DESARROLLO
+# Configuracion del entorno de ejecucion
 
 # Cargar variables de entorno desde .env
 load_dotenv()
@@ -217,7 +217,7 @@ def read_sheet_snapshot(worksheet) -> tuple[dict, dict]:
             )
 
         logging.info(
-            "Snapshot de Sheets cargado. Filas con Prereserva=%s",
+            "Estado de la hoja cargado. Filas con Prereserva=%s",
             len(index_by_prereserva),
         )
         return index_by_prereserva, row_values_by_prereserva
@@ -227,7 +227,7 @@ def read_sheet_snapshot(worksheet) -> tuple[dict, dict]:
 
 
 def classify_records(df: pd.DataFrame, sheet_index: dict, sheet_rows: dict) -> tuple[list, list, int]:
-    """Clasifica registros deduplicados en append, update y noop."""
+    """Clasifica registros deduplicados en insercion, actualizacion y sin cambios."""
     if df.empty:
         return [], [], 0
 
@@ -245,7 +245,7 @@ def classify_records(df: pd.DataFrame, sheet_index: dict, sheet_rows: dict) -> t
 
         if prereserva not in sheet_index:
             append_rows.append(mysql_row)
-            logging.info("Prereserva %s -> APPEND (no existe en Sheets).", prereserva)
+            logging.info("Prereserva %s -> INSERCION (no existe en Sheets).", prereserva)
             continue
 
         sheet_row = sheet_rows.get(prereserva, [''] * len(SHEET_COLUMNS))
@@ -264,7 +264,7 @@ def classify_records(df: pd.DataFrame, sheet_index: dict, sheet_rows: dict) -> t
                 }
             )
             logging.info(
-                "Prereserva %s -> UPDATE (%s campos cambiados).",
+                "Prereserva %s -> ACTUALIZACION (%s campos modificados).",
                 prereserva,
                 len(changed_fields),
             )
@@ -278,13 +278,13 @@ def classify_records(df: pd.DataFrame, sheet_index: dict, sheet_rows: dict) -> t
                 )
         else:
             noop_count += 1
-            logging.info("Prereserva %s -> NO-OP (sin cambios).", prereserva)
+            logging.info("Prereserva %s -> SIN_CAMBIOS (sin cambios).", prereserva)
 
     return append_rows, updates, noop_count
 
 
 def batch_update_existing_rows(worksheet, updates: list):
-    """Actualiza filas existentes en una sola llamada batch_update."""
+    """Actualiza filas existentes en una sola llamada por lote."""
     if not updates:
         logging.info("No hay updates para ejecutar en Google Sheets.")
         return
@@ -301,7 +301,7 @@ def batch_update_existing_rows(worksheet, updates: list):
             data.append({'range': range_a1, 'values': [item['values']]})
 
         worksheet.batch_update(data, value_input_option='USER_ENTERED')
-        logging.info("Batch UPDATE ejecutado. Filas actualizadas=%s", len(updates))
+        logging.info("Actualizacion por lote ejecutada. Filas actualizadas=%s", len(updates))
     except Exception as e:
         logging.error(f"Error al ejecutar batch_update en Google Sheets: {e}", exc_info=True)
         raise
@@ -315,7 +315,7 @@ def append_new_rows(worksheet, rows: list):
 
     try:
         worksheet.append_rows(rows, value_input_option='USER_ENTERED')
-        logging.info("Batch APPEND ejecutado. Filas insertadas=%s", len(rows))
+        logging.info("Insercion por lote ejecutada. Filas insertadas=%s", len(rows))
     except Exception as e:
         logging.error(f"Error al ejecutar append_rows en Google Sheets: {e}", exc_info=True)
         raise
@@ -354,7 +354,7 @@ def main():
         with open(CREDENTIALS_FILE, 'r', encoding='utf-8') as f:
             cred_json = json.load(f)
             service_account_email = cred_json.get('client_email', 'N/D')
-        print(f"[INFO] Service Account en uso: {service_account_email}")
+        print(f"[INFO] Cuenta de servicio en uso: {service_account_email}")
              
         credentials = Credentials.from_service_account_file(CREDENTIALS_FILE, scopes=scopes)
         gc = gspread.authorize(credentials)
@@ -395,7 +395,7 @@ def main():
             # 5. Snapshot completo de Sheets + índice en memoria Prereserva -> fila real.
             sheet_index, sheet_rows = read_sheet_snapshot(worksheet)
 
-            # 6. Clasificación por regla de negocio: append / update / noop comparando 27 campos.
+            # 6. Clasificacion por regla de negocio: insercion / actualizacion / sin cambios comparando 27 campos.
             append_rows_payload, updates_payload, noop_count = classify_records(df_clean, sheet_index, sheet_rows)
             print(f"[INFO] Clasificacion: append={len(append_rows_payload)} update={len(updates_payload)} noop={noop_count}")
 

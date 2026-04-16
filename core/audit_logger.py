@@ -1,4 +1,4 @@
-"""Reusable audit logger for all automatizaciones."""
+"""Logger de auditoria reutilizable para todas las automatizaciones."""
 
 from __future__ import annotations
 
@@ -13,9 +13,9 @@ VALID_STATES = {"EXITO", "ADVERTENCIA", "ERROR"}
 
 @dataclass
 class AuditLogger:
-    """Track process execution and persist audit records at the end.
+    """Registra la ejecucion del proceso y persiste la auditoria al finalizar.
 
-    Lifecycle:
+    Ciclo de vida:
         __init__ -> start -> record_* / set_metric -> mark_* -> persist
     """
 
@@ -117,7 +117,7 @@ class AuditLogger:
     def persist(self) -> int:
         if self._persisted:
             if self._id_ejecucion is None:
-                raise RuntimeError("Audit already persisted but execution id is missing")
+                raise RuntimeError("La auditoria ya fue persistida, pero falta el id de ejecucion")
             return self._id_ejecucion
 
         if not self._started:
@@ -128,7 +128,7 @@ class AuditLogger:
             self.estado = self._derive_state()
 
         if self.estado not in VALID_STATES:
-            raise ValueError(f"Invalid audit state: {self.estado}")
+            raise ValueError(f"Estado de auditoria invalido: {self.estado}")
 
         summary = self.build_summary()
         detail_chunks = self.build_detail_chunks()
@@ -183,7 +183,7 @@ class AuditLogger:
             return int(self.id_proceso)
 
         if not self.process_name:
-            raise ValueError("id_proceso or process_name is required for persistence")
+            raise ValueError("Se requiere id_proceso o process_name para persistir la auditoria")
 
         cursor.execute(
             "SELECT id_proceso FROM PROCESOS WHERE nombre_proceso = %s LIMIT 1",
@@ -195,8 +195,8 @@ class AuditLogger:
 
         if not self.create_process_if_missing:
             raise ValueError(
-                "Process not found in PROCESOS. "
-                "Provide id_proceso, register the process, or set create_process_if_missing=True"
+                "Proceso no encontrado en PROCESOS. "
+                "Indica id_proceso, registra el proceso o activa create_process_if_missing=True"
             )
 
         cursor.execute(
@@ -242,7 +242,7 @@ class AuditLogger:
     @staticmethod
     def _chunk_lines(lines: list[str], max_chunk_chars: int) -> list[str]:
         if max_chunk_chars < 500:
-            raise ValueError("max_chunk_chars must be >= 500")
+            raise ValueError("max_chunk_chars debe ser >= 500")
 
         chunks: list[str] = []
         current: list[str] = []
