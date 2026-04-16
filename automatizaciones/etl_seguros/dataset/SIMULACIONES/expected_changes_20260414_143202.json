@@ -1,0 +1,393 @@
+{
+  "run_id": "20260414_143202",
+  "created_at": "2026-04-14 14:32:02",
+  "config": {
+    "source": "replay",
+    "mode": "db",
+    "new_count": 10,
+    "repeat_count": 6,
+    "delay": 0.0,
+    "seed": null,
+    "max_events": 2000,
+    "reset_table": false,
+    "replay_file": "dataset/NORMALIZADO/historial_completo_normalizado.csv"
+  },
+  "summary": {
+    "total_simulados": 16,
+    "total_expected_appends": 10,
+    "total_expected_updates": 6,
+    "total_expected_noops": 0
+  },
+  "expected_changes": [
+    {
+      "seq": 1,
+      "prereserva": "26030021",
+      "is_repeat_input": false,
+      "expected_action": "append",
+      "accion_esperada_texto": "registro nuevo",
+      "changed_fields_count": 0,
+      "changes": [],
+      "estadoavance_actual": "Asignado",
+      "cliente": "CABRERA ROBERTO MIGUEL",
+      "marca": "Automont",
+      "marcamodelo": "0804-HYUNDAI HB20 PLATINUM SAFETY AT 1.6",
+      "anio": "2026"
+    },
+    {
+      "seq": 2,
+      "prereserva": "26030021",
+      "is_repeat_input": true,
+      "expected_action": "update",
+      "accion_esperada_texto": "actualizacion detectada",
+      "changed_fields_count": 1,
+      "changes": [
+        {
+          "field": "Estadoavance",
+          "old": "Asignado",
+          "new": "Autorizado"
+        }
+      ],
+      "estadoavance_actual": "Autorizado",
+      "cliente": "CABRERA ROBERTO MIGUEL",
+      "marca": "Automont",
+      "marcamodelo": "0804-HYUNDAI HB20 PLATINUM SAFETY AT 1.6",
+      "anio": "2026"
+    },
+    {
+      "seq": 3,
+      "prereserva": "26030082",
+      "is_repeat_input": false,
+      "expected_action": "append",
+      "accion_esperada_texto": "registro nuevo",
+      "changed_fields_count": 0,
+      "changes": [],
+      "estadoavance_actual": "Autorizado",
+      "cliente": "KLOR DARIO HERN",
+      "marca": "Montironi",
+      "marcamodelo": "4806-FORD BRONCO SPORT BADLANDS 2.0L",
+      "anio": "2026"
+    },
+    {
+      "seq": 4,
+      "prereserva": "26010044",
+      "is_repeat_input": false,
+      "expected_action": "append",
+      "accion_esperada_texto": "registro nuevo",
+      "changed_fields_count": 0,
+      "changes": [],
+      "estadoavance_actual": "Turno Entrega",
+      "cliente": "BANCO COMAFI S.A",
+      "marca": "Pinerolo",
+      "marcamodelo": "1242-FIAT FIORINO ENDURANCE 1.3L MT",
+      "anio": "2026"
+    },
+    {
+      "seq": 5,
+      "prereserva": "26040001",
+      "is_repeat_input": false,
+      "expected_action": "append",
+      "accion_esperada_texto": "registro nuevo",
+      "changed_fields_count": 0,
+      "changes": [],
+      "estadoavance_actual": "Asignado",
+      "cliente": "CONRRERO JUAN VICENTE",
+      "marca": "Automont",
+      "marcamodelo": "0803-HYUNDAI HB20 COMFORT PLUS AT 1.6",
+      "anio": "2026"
+    },
+    {
+      "seq": 6,
+      "prereserva": "26040001",
+      "is_repeat_input": true,
+      "expected_action": "update",
+      "accion_esperada_texto": "actualizacion detectada",
+      "changed_fields_count": 1,
+      "changes": [
+        {
+          "field": "Estadoavance",
+          "old": "Asignado",
+          "new": "Autorizado"
+        }
+      ],
+      "estadoavance_actual": "Autorizado",
+      "cliente": "CONRRERO JUAN VICENTE",
+      "marca": "Automont",
+      "marcamodelo": "0803-HYUNDAI HB20 COMFORT PLUS AT 1.6",
+      "anio": "2026"
+    },
+    {
+      "seq": 7,
+      "prereserva": "26030040",
+      "is_repeat_input": false,
+      "expected_action": "append",
+      "accion_esperada_texto": "registro nuevo",
+      "changed_fields_count": 0,
+      "changes": [],
+      "estadoavance_actual": "Turno Entrega",
+      "cliente": "CONSTRUCABLE SA",
+      "marca": "Pinerolo",
+      "marcamodelo": "1242-FIAT FIORINO ENDURANCE 1.3L MT",
+      "anio": "2026"
+    },
+    {
+      "seq": 8,
+      "prereserva": "26040001",
+      "is_repeat_input": true,
+      "expected_action": "update",
+      "accion_esperada_texto": "actualizacion detectada",
+      "changed_fields_count": 3,
+      "changes": [
+        {
+          "field": "Email",
+          "old": "GCONRRERO@GMAIL.COM",
+          "new": "conrrerovicente@gmail.com"
+        },
+        {
+          "field": "Estadoavance",
+          "old": "Autorizado",
+          "new": "Facturada"
+        },
+        {
+          "field": "Fechaventa",
+          "old": "",
+          "new": "01/04/2026"
+        }
+      ],
+      "estadoavance_actual": "Facturada",
+      "cliente": "CONRRERO JUAN VICENTE",
+      "marca": "Automont",
+      "marcamodelo": "0803-HYUNDAI HB20 COMFORT PLUS AT 1.6",
+      "anio": "2026"
+    },
+    {
+      "seq": 9,
+      "prereserva": "26030006",
+      "is_repeat_input": false,
+      "expected_action": "append",
+      "accion_esperada_texto": "registro nuevo",
+      "changed_fields_count": 0,
+      "changes": [],
+      "estadoavance_actual": "Autorizado",
+      "cliente": "DA TORRE CLAUDIO MARCELO",
+      "marca": "Pinerolo",
+      "marcamodelo": "1260- FIAT TORO FREEDOM 1.3T",
+      "anio": "2026"
+    },
+    {
+      "seq": 10,
+      "prereserva": "26030070",
+      "is_repeat_input": false,
+      "expected_action": "append",
+      "accion_esperada_texto": "registro nuevo",
+      "changed_fields_count": 0,
+      "changes": [],
+      "estadoavance_actual": "Autorizado",
+      "cliente": "DEFASSI MIGUEL ANGEL",
+      "marca": "Pinerolo",
+      "marcamodelo": "1262-FIAT TORO VOLCANO 1.3T",
+      "anio": "2026"
+    },
+    {
+      "seq": 11,
+      "prereserva": "26030006",
+      "is_repeat_input": true,
+      "expected_action": "update",
+      "accion_esperada_texto": "actualizacion detectada",
+      "changed_fields_count": 3,
+      "changes": [
+        {
+          "field": "Localidad",
+          "old": "MERLO JUNIN",
+          "new": "MERLO"
+        },
+        {
+          "field": "Estadoavance",
+          "old": "Autorizado",
+          "new": "Facturada"
+        },
+        {
+          "field": "Fechaventa",
+          "old": "",
+          "new": "07/04/2026"
+        }
+      ],
+      "estadoavance_actual": "Facturada",
+      "cliente": "DA TORRE CLAUDIO MARCELO",
+      "marca": "Pinerolo",
+      "marcamodelo": "1260- FIAT TORO FREEDOM 1.3T",
+      "anio": "2026"
+    },
+    {
+      "seq": 12,
+      "prereserva": "26030068",
+      "is_repeat_input": false,
+      "expected_action": "append",
+      "accion_esperada_texto": "registro nuevo",
+      "changed_fields_count": 0,
+      "changes": [],
+      "estadoavance_actual": "Turno Entrega",
+      "cliente": "ALABARCE IVAN EZEQUIEL",
+      "marca": "Montironi",
+      "marcamodelo": "4811-FORD BRONCO SPORT BIG BEND (VS-CC)",
+      "anio": "2026"
+    },
+    {
+      "seq": 13,
+      "prereserva": "26020061",
+      "is_repeat_input": false,
+      "expected_action": "append",
+      "accion_esperada_texto": "registro nuevo",
+      "changed_fields_count": 0,
+      "changes": [],
+      "estadoavance_actual": "Turno Entrega",
+      "cliente": "BIANCHI EDGARDO JORGE",
+      "marca": "Pinerolo",
+      "marcamodelo": "1226-FIAT STRADA FREEDOM CD 1.3 8V MT",
+      "anio": "2026"
+    },
+    {
+      "seq": 14,
+      "prereserva": "26040004",
+      "is_repeat_input": false,
+      "expected_action": "append",
+      "accion_esperada_texto": "registro nuevo",
+      "changed_fields_count": 0,
+      "changes": [],
+      "estadoavance_actual": "Asignado",
+      "cliente": "ZAPATA MARIA CAROLINA",
+      "marca": "Automont",
+      "marcamodelo": "0208-HYUNDAI NEW CRETA SAFETY",
+      "anio": "2026"
+    },
+    {
+      "seq": 15,
+      "prereserva": "26040004",
+      "is_repeat_input": true,
+      "expected_action": "update",
+      "accion_esperada_texto": "actualizacion detectada",
+      "changed_fields_count": 1,
+      "changes": [
+        {
+          "field": "Estadoavance",
+          "old": "Asignado",
+          "new": "Autorizado"
+        }
+      ],
+      "estadoavance_actual": "Autorizado",
+      "cliente": "ZAPATA MARIA CAROLINA",
+      "marca": "Automont",
+      "marcamodelo": "0208-HYUNDAI NEW CRETA SAFETY",
+      "anio": "2026"
+    },
+    {
+      "seq": 16,
+      "prereserva": "26040004",
+      "is_repeat_input": true,
+      "expected_action": "update",
+      "accion_esperada_texto": "actualizacion detectada",
+      "changed_fields_count": 19,
+      "changes": [
+        {
+          "field": "Precioventa",
+          "old": "38630000",
+          "new": "64350000"
+        },
+        {
+          "field": "Cliente",
+          "old": "ZAPATA MARIA CAROLINA",
+          "new": "ESTANCIAS DEL TOTORAL S.A"
+        },
+        {
+          "field": "Cuitcliente",
+          "old": "27-28560410-4",
+          "new": "30-59130433-6"
+        },
+        {
+          "field": "Email",
+          "old": "CDOR.GONZALEZ@GMAIL.COM",
+          "new": "estanciasdeltotoral@gmail.com"
+        },
+        {
+          "field": "Telefono",
+          "old": "542302533435",
+          "new": "543525475170"
+        },
+        {
+          "field": "Domicilio",
+          "old": "AVENIDA SARMIENTO 1777",
+          "new": "JUAN B. JUSTO 1193"
+        },
+        {
+          "field": "Localidad",
+          "old": "CHAPALEUFU",
+          "new": "JESUS MARIA"
+        },
+        {
+          "field": "Provincia",
+          "old": "La Pampa",
+          "new": "Cordoba"
+        },
+        {
+          "field": "Codigounidad",
+          "old": "278",
+          "new": "61471"
+        },
+        {
+          "field": "Marca",
+          "old": "Automont",
+          "new": "Montironi"
+        },
+        {
+          "field": "Marcamodelo",
+          "old": "0208-HYUNDAI NEW CRETA SAFETY",
+          "new": "4839-FORD RANGER RNGR  XLT CC 3.0L V6 10AT 4W"
+        },
+        {
+          "field": "Color",
+          "old": "SHADOW GREY",
+          "new": "GRIS MAGNETIC"
+        },
+        {
+          "field": "Vin",
+          "old": "9BHPA81DEVP282645",
+          "new": "8AFBR01J1TJ034655"
+        },
+        {
+          "field": "Vendedor",
+          "old": "260004-Monjes Jeremias",
+          "new": "022089-CASASNOVAS"
+        },
+        {
+          "field": "Sucursal",
+          "old": "0",
+          "new": "1"
+        },
+        {
+          "field": "Estadoavance",
+          "old": "Autorizado",
+          "new": "Facturada"
+        },
+        {
+          "field": "Fechaprereserva",
+          "old": "08/04/2026",
+          "new": "09/04/2026"
+        },
+        {
+          "field": "Fechaventa",
+          "old": "",
+          "new": "09/04/2026"
+        },
+        {
+          "field": "Fechaproceso",
+          "old": "08/04/2026",
+          "new": "09/04/2026"
+        }
+      ],
+      "estadoavance_actual": "Facturada",
+      "cliente": "ESTANCIAS DEL TOTORAL S.A",
+      "marca": "Montironi",
+      "marcamodelo": "4839-FORD RANGER RNGR  XLT CC 3.0L V6 10AT 4W",
+      "anio": "2026"
+    }
+  ]
+}

@@ -9,11 +9,21 @@ share/
 
 # Secretos (¡NO SUBIR AL REPOSITORIO!)
 .env
+.env.*
+!.env.example
 credentials.json
+credentials.*.json
+!credentials.json.example
 
 # Archivos de Estado y Logs
 watermark.json
 etl.log
+*.log
+logs/
+
+# Datos temporales de automatizaciones
+**/watermark.json
+**/__pycache__/
 
 # Python
 __pycache__/
