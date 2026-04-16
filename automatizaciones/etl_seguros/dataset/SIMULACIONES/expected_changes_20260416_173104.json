@@ -1,11 +1,11 @@
 {
-  "run_id": "20260414_142842",
-  "created_at": "2026-04-14 14:28:42",
+  "run_id": "20260416_173104",
+  "created_at": "2026-04-16 17:31:04",
   "config": {
     "source": "replay",
     "mode": "db",
-    "new_count": 10,
-    "repeat_count": 4,
+    "new_count": 15,
+    "repeat_count": 5,
     "delay": 0.0,
     "seed": null,
     "max_events": 2000,
@@ -13,9 +13,9 @@
     "replay_file": "dataset/NORMALIZADO/historial_completo_normalizado.csv"
   },
   "summary": {
-    "total_simulados": 14,
-    "total_expected_appends": 10,
-    "total_expected_updates": 4,
+    "total_simulados": 20,
+    "total_expected_appends": 15,
+    "total_expected_updates": 5,
     "total_expected_noops": 0
   },
   "expected_changes": [
@@ -35,21 +35,35 @@
     },
     {
       "seq": 2,
-      "prereserva": "26030020",
+      "prereserva": "26030043",
+      "is_repeat_input": false,
+      "expected_action": "append",
+      "accion_esperada_texto": "registro nuevo",
+      "changed_fields_count": 0,
+      "changes": [],
+      "estadoavance_actual": "Turno Entrega",
+      "cliente": "PETITE JUAN CRUZ",
+      "marca": "Montironi",
+      "marcamodelo": "4829-FORD TERRITORY TREND 1.5L HIBRIDA AT",
+      "anio": "2026"
+    },
+    {
+      "seq": 3,
+      "prereserva": "26030021",
       "is_repeat_input": false,
       "expected_action": "append",
       "accion_esperada_texto": "registro nuevo",
       "changed_fields_count": 0,
       "changes": [],
       "estadoavance_actual": "Asignado",
-      "cliente": "BARRADO OSCAR MARCELO",
+      "cliente": "CABRERA ROBERTO MIGUEL",
       "marca": "Automont",
-      "marcamodelo": "0208-HYUNDAI NEW CRETA SAFETY",
+      "marcamodelo": "0804-HYUNDAI HB20 PLATINUM SAFETY AT 1.6",
       "anio": "2026"
     },
     {
-      "seq": 3,
-      "prereserva": "26030020",
+      "seq": 4,
+      "prereserva": "26030021",
       "is_repeat_input": true,
       "expected_action": "update",
       "accion_esperada_texto": "actualizacion detectada",
@@ -62,13 +76,13 @@
         }
       ],
       "estadoavance_actual": "Autorizado",
-      "cliente": "BARRADO OSCAR MARCELO",
+      "cliente": "CABRERA ROBERTO MIGUEL",
       "marca": "Automont",
-      "marcamodelo": "0208-HYUNDAI NEW CRETA SAFETY",
+      "marcamodelo": "0804-HYUNDAI HB20 PLATINUM SAFETY AT 1.6",
       "anio": "2026"
     },
     {
-      "seq": 4,
+      "seq": 5,
       "prereserva": "26030082",
       "is_repeat_input": false,
       "expected_action": "append",
@@ -82,42 +96,75 @@
       "anio": "2026"
     },
     {
-      "seq": 5,
-      "prereserva": "26030020",
+      "seq": 6,
+      "prereserva": "26010044",
+      "is_repeat_input": false,
+      "expected_action": "append",
+      "accion_esperada_texto": "registro nuevo",
+      "changed_fields_count": 0,
+      "changes": [],
+      "estadoavance_actual": "Turno Entrega",
+      "cliente": "BANCO COMAFI S.A",
+      "marca": "Pinerolo",
+      "marcamodelo": "1242-FIAT FIORINO ENDURANCE 1.3L MT",
+      "anio": "2026"
+    },
+    {
+      "seq": 7,
+      "prereserva": "26030075",
+      "is_repeat_input": false,
+      "expected_action": "append",
+      "accion_esperada_texto": "registro nuevo",
+      "changed_fields_count": 0,
+      "changes": [],
+      "estadoavance_actual": "Asignado",
+      "cliente": "GRIBAUDO LUCIANA MICAELA",
+      "marca": "Pinerolo",
+      "marcamodelo": "1242-FIAT FIORINO ENDURANCE 1.3L MT",
+      "anio": "2026"
+    },
+    {
+      "seq": 8,
+      "prereserva": "26030075",
       "is_repeat_input": true,
       "expected_action": "update",
       "accion_esperada_texto": "actualizacion detectada",
-      "changed_fields_count": 4,
+      "changed_fields_count": 1,
+      "changes": [
+        {
+          "field": "Estadoavance",
+          "old": "Asignado",
+          "new": "Autorizado"
+        }
+      ],
+      "estadoavance_actual": "Autorizado",
+      "cliente": "GRIBAUDO LUCIANA MICAELA",
+      "marca": "Pinerolo",
+      "marcamodelo": "1242-FIAT FIORINO ENDURANCE 1.3L MT",
+      "anio": "2026"
+    },
+    {
+      "seq": 9,
+      "prereserva": "26030075",
+      "is_repeat_input": true,
+      "expected_action": "update",
+      "accion_esperada_texto": "actualizacion detectada",
+      "changed_fields_count": 1,
       "changes": [
         {
           "field": "Estadoavance",
           "old": "Autorizado",
           "new": "Facturada"
-        },
-        {
-          "field": "Fechaprereserva",
-          "old": "30/03/2026",
-          "new": "31/03/2026"
-        },
-        {
-          "field": "Fechaventa",
-          "old": "",
-          "new": "31/03/2026"
-        },
-        {
-          "field": "Fechaproceso",
-          "old": "30/03/2026",
-          "new": "31/03/2026"
         }
       ],
       "estadoavance_actual": "Facturada",
-      "cliente": "BARRADO OSCAR MARCELO",
-      "marca": "Automont",
-      "marcamodelo": "0208-HYUNDAI NEW CRETA SAFETY",
+      "cliente": "GRIBAUDO LUCIANA MICAELA",
+      "marca": "Pinerolo",
+      "marcamodelo": "1242-FIAT FIORINO ENDURANCE 1.3L MT",
       "anio": "2026"
     },
     {
-      "seq": 6,
+      "seq": 10,
       "prereserva": "26040001",
       "is_repeat_input": false,
       "expected_action": "append",
@@ -131,7 +178,7 @@
       "anio": "2026"
     },
     {
-      "seq": 7,
+      "seq": 11,
       "prereserva": "26040001",
       "is_repeat_input": true,
       "expected_action": "update",
@@ -151,21 +198,21 @@
       "anio": "2026"
     },
     {
-      "seq": 8,
-      "prereserva": "26030032",
+      "seq": 12,
+      "prereserva": "26030056",
       "is_repeat_input": false,
       "expected_action": "append",
       "accion_esperada_texto": "registro nuevo",
       "changed_fields_count": 0,
       "changes": [],
       "estadoavance_actual": "Turno Entrega",
-      "cliente": "DELPONTIGO WALTER DAVID",
+      "cliente": "GALVEZ GERMAN ROBERTO",
       "marca": "Montironi",
-      "marcamodelo": "4840-FORD RANGER DC XL 2.0L T 4X2 MT D",
-      "anio": "2026"
+      "marcamodelo": "4844-FORD RANGER RAPTOR 3.0L V6 BIT GTDI 4X4",
+      "anio": ""
     },
     {
-      "seq": 9,
+      "seq": 13,
       "prereserva": "26030040",
       "is_repeat_input": false,
       "expected_action": "append",
@@ -179,55 +226,65 @@
       "anio": "2026"
     },
     {
-      "seq": 10,
-      "prereserva": "26040003",
+      "seq": 14,
+      "prereserva": "26020085",
       "is_repeat_input": false,
       "expected_action": "append",
       "accion_esperada_texto": "registro nuevo",
       "changed_fields_count": 0,
       "changes": [],
-      "estadoavance_actual": "Asignado",
-      "cliente": "ABAD EDUARDO ADRIAN",
-      "marca": "Automont",
-      "marcamodelo": "0803-HYUNDAI HB20 COMFORT PLUS AT 1.6",
+      "estadoavance_actual": "Turno Entrega",
+      "cliente": "MEGG S.A.",
+      "marca": "Pinerolo",
+      "marcamodelo": "1226-FIAT STRADA FREEDOM CD 1.3 8V MT",
       "anio": "2026"
     },
     {
-      "seq": 11,
-      "prereserva": "26040003",
+      "seq": 15,
+      "prereserva": "26040001",
       "is_repeat_input": true,
       "expected_action": "update",
       "accion_esperada_texto": "actualizacion detectada",
-      "changed_fields_count": 1,
+      "changed_fields_count": 3,
       "changes": [
         {
+          "field": "Email",
+          "old": "GCONRRERO@GMAIL.COM",
+          "new": "conrrerovicente@gmail.com"
+        },
+        {
           "field": "Estadoavance",
-          "old": "Asignado",
-          "new": "Autorizado"
+          "old": "Autorizado",
+          "new": "Facturada"
+        },
+        {
+          "field": "Fechaventa",
+          "old": "",
+          "new": "01/04/2026"
         }
       ],
-      "estadoavance_actual": "Autorizado",
-      "cliente": "ABAD EDUARDO ADRIAN",
+      "estadoavance_actual": "Facturada",
+      "cliente": "CONRRERO JUAN VICENTE",
       "marca": "Automont",
       "marcamodelo": "0803-HYUNDAI HB20 COMFORT PLUS AT 1.6",
       "anio": "2026"
     },
     {
-      "seq": 12,
-      "prereserva": "26030006",
+      "seq": 16,
+      "prereserva": "26030004",
       "is_repeat_input": false,
       "expected_action": "append",
       "accion_esperada_texto": "registro nuevo",
       "changed_fields_count": 0,
       "changes": [],
-      "estadoavance_actual": "Autorizado",
-      "cliente": "DA TORRE CLAUDIO MARCELO",
-      "marca": "Pinerolo",
-      "marcamodelo": "1260- FIAT TORO FREEDOM 1.3T",
+      "estadoavance_actual": "Turno Entrega",
+      "cliente": "CAÑARTE PAGANI VICTORIA",
+      "marca": "Landcar",
+      "marcamodelo": "1323-JEEP RENEGADE LONGITUDE 1.3T AT6",
       "anio": "2026"
     },
     {
-      "seq": 13,
+      "seq": 17,
       "prereserva": "26030070",
       "is_repeat_input": false,
       "expected_action": "append",
@@ -241,7 +298,21 @@
       "anio": "2026"
     },
     {
-      "seq": 14,
+      "seq": 18,
+      "prereserva": "26030068",
+      "is_repeat_input": false,
+      "expected_action": "append",
+      "accion_esperada_texto": "registro nuevo",
+      "changed_fields_count": 0,
+      "changes": [],
+      "estadoavance_actual": "Turno Entrega",
+      "cliente": "ALABARCE IVAN EZEQUIEL",
+      "marca": "Montironi",
+      "marcamodelo": "4811-FORD BRONCO SPORT BIG BEND (VS-CC)",
+      "anio": "2026"
+    },
+    {
+      "seq": 19,
       "prereserva": "26040004",
       "is_repeat_input": false,
       "expected_action": "append",
@@ -252,6 +323,20 @@
       "cliente": "ZAPATA MARIA CAROLINA",
       "marca": "Automont",
       "marcamodelo": "0208-HYUNDAI NEW CRETA SAFETY",
+      "anio": "2026"
+    },
+    {
+      "seq": 20,
+      "prereserva": "26030076",
+      "is_repeat_input": false,
+      "expected_action": "append",
+      "accion_esperada_texto": "registro nuevo",
+      "changed_fields_count": 0,
+      "changes": [],
+      "estadoavance_actual": "Autorizado",
+      "cliente": "ESPINDOLA JAVIER OSCAR",
+      "marca": "Pinerolo",
+      "marcamodelo": "1208-FIAT CRONOS DRIVE 1.3 GSE BZ",
       "anio": "2026"
     }
   ]

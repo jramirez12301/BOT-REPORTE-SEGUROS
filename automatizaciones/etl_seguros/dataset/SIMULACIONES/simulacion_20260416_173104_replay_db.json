@@ -1,11 +1,11 @@
 {
-  "run_id": "20260414_143202",
-  "created_at": "2026-04-14 14:32:02",
+  "run_id": "20260416_173104",
+  "created_at": "2026-04-16 17:31:04",
   "config": {
     "source": "replay",
     "mode": "db",
-    "new_count": 10,
-    "repeat_count": 6,
+    "new_count": 15,
+    "repeat_count": 5,
     "delay": 0.0,
     "seed": null,
     "max_events": 2000,
@@ -13,18 +13,18 @@
     "replay_file": "dataset/NORMALIZADO/historial_completo_normalizado.csv"
   },
   "summary": {
-    "total": 16,
-    "new": 10,
-    "repeat": 6,
+    "total": 20,
+    "new": 15,
+    "repeat": 5,
     "status_distribution": {
-      "Asignado": 3,
-      "Autorizado": 6,
-      "Turno Entrega": 4,
-      "Facturada": 3
+      "Facturada": 3,
+      "Turno Entrega": 7,
+      "Asignado": 4,
+      "Autorizado": 6
     },
-    "inserted_in_db": 16,
-    "total_expected_appends": 10,
-    "total_expected_updates": 6,
+    "inserted_in_db": 20,
+    "total_expected_appends": 15,
+    "total_expected_updates": 5,
     "total_expected_noops": 0,
     "replay_encoding": "cp1252",
     "replay_strategy": {
@@ -32,7 +32,7 @@
       "engine": "python"
     },
     "replay_read_attempts": 2,
-    "replay_path": "C:\\Users\\javier.ramirez\\Documents\\Trabajo Javier\\Reparacion de Reporte Seguros\\Entorno\\dataset\\NORMALIZADO\\historial_completo_normalizado.csv"
+    "replay_path": "C:\\Users\\javier.ramirez\\Documents\\Trabajo Javier\\Reparacion de Reporte Seguros\\Entorno\\automatizaciones\\etl_seguros\\dataset\\NORMALIZADO\\historial_completo_normalizado.csv"
   },
   "input_meta": {
     "encoding": "cp1252",
@@ -41,11 +41,89 @@
       "engine": "python"
     },
     "read_attempts": 2,
-    "replay_path": "C:\\Users\\javier.ramirez\\Documents\\Trabajo Javier\\Reparacion de Reporte Seguros\\Entorno\\dataset\\NORMALIZADO\\historial_completo_normalizado.csv"
+    "replay_path": "C:\\Users\\javier.ramirez\\Documents\\Trabajo Javier\\Reparacion de Reporte Seguros\\Entorno\\automatizaciones\\etl_seguros\\dataset\\NORMALIZADO\\historial_completo_normalizado.csv"
   },
   "events": [
     {
       "seq": 1,
+      "is_repeat": false,
+      "prereserva": "26030057",
+      "estadoavance": "Facturada",
+      "expected_action": "append",
+      "accion_esperada_texto": "registro nuevo",
+      "changed_fields_count": 0,
+      "changes": [],
+      "data": {
+        "Prereserva": "26030057",
+        "Rubro": "11",
+        "Precioventa": "38379840",
+        "Cliente": "RODRIGUEZ JUAN CRUZ",
+        "Cuitcliente": "20-40000477-4",
+        "Email": "JUAN-18-08@HOTMAIL.COM",
+        "Telefono": "542964468474",
+        "Domicilio": "HERMANA ROSA MASSOBRIO 235",
+        "Localidad": "RIO GRANDE",
+        "Provincia": "Tierra del Fuego",
+        "Codigounidad": "29483",
+        "Marca": "Pinerolo",
+        "Marcamodelo": "1253-FIAT FASTBACK TURBO 270 AT  MY 26",
+        "Anio": "",
+        "Color": "PRATA BARI+TET VULC",
+        "Vin": "9BD376BM8TYC84527",
+        "Patente": "",
+        "Vendedor": "102027-SEGURA LUCIO",
+        "Sucursal": "3",
+        "Origen": "0",
+        "Estado": "Con Seña",
+        "Estadoavance": "Facturada",
+        "Fechaprereserva": "30/03/2026",
+        "Fechaventa": "30/03/2026",
+        "Fechaentrega": "",
+        "Fechapatentamiento": "",
+        "Fechaproceso": "30/03/2026"
+      }
+    },
+    {
+      "seq": 2,
+      "is_repeat": false,
+      "prereserva": "26030043",
+      "estadoavance": "Turno Entrega",
+      "expected_action": "append",
+      "accion_esperada_texto": "registro nuevo",
+      "changed_fields_count": 0,
+      "changes": [],
+      "data": {
+        "Prereserva": "26030043",
+        "Rubro": "12",
+        "Precioventa": "51060000",
+        "Cliente": "PETITE JUAN CRUZ",
+        "Cuitcliente": "20-27654891-4",
+        "Email": "JUANCRUZPETITE@hotmail.com",
+        "Telefono": "543517012238",
+        "Domicilio": "MZA 19 LOTE 3 SN VILLA CATALIN",
+        "Localidad": "RIO CEBALLOS",
+        "Provincia": "Cordoba",
+        "Codigounidad": "61413",
+        "Marca": "Montironi",
+        "Marcamodelo": "4829-FORD TERRITORY TREND 1.5L HIBRIDA AT",
+        "Anio": "2026",
+        "Color": "GRIS MERCURIO",
+        "Vin": "LJXCU2BB3THF62173",
+        "Patente": "AI187FB",
+        "Vendedor": "084763-PEREZ ANALIA NOEMÍ",
+        "Sucursal": "1",
+        "Origen": "0",
+        "Estado": "Ingresado",
+        "Estadoavance": "Turno Entrega",
+        "Fechaprereserva": "30/03/2026",
+        "Fechaventa": "26/03/2026",
+        "Fechaentrega": "30/03/2026",
+        "Fechapatentamiento": "27/03/2026",
+        "Fechaproceso": "30/03/2026"
+      }
+    },
+    {
+      "seq": 3,
       "is_repeat": false,
       "prereserva": "26030021",
       "estadoavance": "Asignado",
@@ -84,7 +162,7 @@
       }
     },
     {
-      "seq": 2,
+      "seq": 4,
       "is_repeat": true,
       "prereserva": "26030021",
       "estadoavance": "Autorizado",
@@ -129,7 +207,7 @@
       }
     },
     {
-      "seq": 3,
+      "seq": 5,
       "is_repeat": false,
       "prereserva": "26030082",
       "estadoavance": "Autorizado",
@@ -168,7 +246,7 @@
       }
     },
     {
-      "seq": 4,
+      "seq": 6,
       "is_repeat": false,
       "prereserva": "26010044",
       "estadoavance": "Turno Entrega",
@@ -207,7 +285,136 @@
       }
     },
     {
-      "seq": 5,
+      "seq": 7,
+      "is_repeat": false,
+      "prereserva": "26030075",
+      "estadoavance": "Asignado",
+      "expected_action": "append",
+      "accion_esperada_texto": "registro nuevo",
+      "changed_fields_count": 0,
+      "changes": [],
+      "data": {
+        "Prereserva": "26030075",
+        "Rubro": "11",
+        "Precioventa": "24847433",
+        "Cliente": "GRIBAUDO LUCIANA MICAELA",
+        "Cuitcliente": "27-43924363-0",
+        "Email": "ABAUTOMOTORES@HOTMAIL.COM3",
+        "Telefono": "543515088602",
+        "Domicilio": "MZA 10 LOTE 17 SN",
+        "Localidad": "CORDOBA",
+        "Provincia": "Cordoba",
+        "Codigounidad": "29443",
+        "Marca": "Pinerolo",
+        "Marcamodelo": "1242-FIAT FIORINO ENDURANCE 1.3L MT",
+        "Anio": "2026",
+        "Color": "BLANCO BANCHISA",
+        "Vin": "9BD2654PNT9324512",
+        "Patente": "",
+        "Vendedor": "101034-MORRA SANTIAGO",
+        "Sucursal": "6",
+        "Origen": "0",
+        "Estado": "Ingresado",
+        "Estadoavance": "Asignado",
+        "Fechaprereserva": "31/03/2026",
+        "Fechaventa": "31/03/2026",
+        "Fechaentrega": "",
+        "Fechapatentamiento": "",
+        "Fechaproceso": "31/03/2026"
+      }
+    },
+    {
+      "seq": 8,
+      "is_repeat": true,
+      "prereserva": "26030075",
+      "estadoavance": "Autorizado",
+      "expected_action": "update",
+      "accion_esperada_texto": "actualizacion detectada",
+      "changed_fields_count": 1,
+      "changes": [
+        {
+          "field": "Estadoavance",
+          "old": "Asignado",
+          "new": "Autorizado"
+        }
+      ],
+      "data": {
+        "Prereserva": "26030075",
+        "Rubro": "11",
+        "Precioventa": "24847433",
+        "Cliente": "GRIBAUDO LUCIANA MICAELA",
+        "Cuitcliente": "27-43924363-0",
+        "Email": "ABAUTOMOTORES@HOTMAIL.COM3",
+        "Telefono": "543515088602",
+        "Domicilio": "MZA 10 LOTE 17 SN",
+        "Localidad": "CORDOBA",
+        "Provincia": "Cordoba",
+        "Codigounidad": "29443",
+        "Marca": "Pinerolo",
+        "Marcamodelo": "1242-FIAT FIORINO ENDURANCE 1.3L MT",
+        "Anio": "2026",
+        "Color": "BLANCO BANCHISA",
+        "Vin": "9BD2654PNT9324512",
+        "Patente": "",
+        "Vendedor": "101034-MORRA SANTIAGO",
+        "Sucursal": "6",
+        "Origen": "0",
+        "Estado": "Ingresado",
+        "Estadoavance": "Autorizado",
+        "Fechaprereserva": "31/03/2026",
+        "Fechaventa": "31/03/2026",
+        "Fechaentrega": "",
+        "Fechapatentamiento": "",
+        "Fechaproceso": "31/03/2026"
+      }
+    },
+    {
+      "seq": 9,
+      "is_repeat": true,
+      "prereserva": "26030075",
+      "estadoavance": "Facturada",
+      "expected_action": "update",
+      "accion_esperada_texto": "actualizacion detectada",
+      "changed_fields_count": 1,
+      "changes": [
+        {
+          "field": "Estadoavance",
+          "old": "Autorizado",
+          "new": "Facturada"
+        }
+      ],
+      "data": {
+        "Prereserva": "26030075",
+        "Rubro": "11",
+        "Precioventa": "24847433",
+        "Cliente": "GRIBAUDO LUCIANA MICAELA",
+        "Cuitcliente": "27-43924363-0",
+        "Email": "ABAUTOMOTORES@HOTMAIL.COM3",
+        "Telefono": "543515088602",
+        "Domicilio": "MZA 10 LOTE 17 SN",
+        "Localidad": "CORDOBA",
+        "Provincia": "Cordoba",
+        "Codigounidad": "29443",
+        "Marca": "Pinerolo",
+        "Marcamodelo": "1242-FIAT FIORINO ENDURANCE 1.3L MT",
+        "Anio": "2026",
+        "Color": "BLANCO BANCHISA",
+        "Vin": "9BD2654PNT9324512",
+        "Patente": "",
+        "Vendedor": "101034-MORRA SANTIAGO",
+        "Sucursal": "6",
+        "Origen": "0",
+        "Estado": "Ingresado",
+        "Estadoavance": "Facturada",
+        "Fechaprereserva": "31/03/2026",
+        "Fechaventa": "31/03/2026",
+        "Fechaentrega": "",
+        "Fechapatentamiento": "",
+        "Fechaproceso": "31/03/2026"
+      }
+    },
+    {
+      "seq": 10,
       "is_repeat": false,
       "prereserva": "26040001",
       "estadoavance": "Asignado",
@@ -246,7 +453,7 @@
       }
     },
     {
-      "seq": 6,
+      "seq": 11,
       "is_repeat": true,
       "prereserva": "26040001",
       "estadoavance": "Autorizado",
@@ -291,7 +498,46 @@
       }
     },
     {
-      "seq": 7,
+      "seq": 12,
+      "is_repeat": false,
+      "prereserva": "26030056",
+      "estadoavance": "Turno Entrega",
+      "expected_action": "append",
+      "accion_esperada_texto": "registro nuevo",
+      "changed_fields_count": 0,
+      "changes": [],
+      "data": {
+        "Prereserva": "26030056",
+        "Rubro": "11",
+        "Precioventa": "105850000",
+        "Cliente": "GALVEZ GERMAN ROBERTO",
+        "Cuitcliente": "20-20930193-9",
+        "Email": "german_rg@icloud.com",
+        "Telefono": "543513184321",
+        "Domicilio": "LUCHESSE 2000 E39 S/N",
+        "Localidad": "VILLA ALLENDE",
+        "Provincia": "Cordoba",
+        "Codigounidad": "61444",
+        "Marca": "Montironi",
+        "Marcamodelo": "4844-FORD RANGER RAPTOR 3.0L V6 BIT GTDI 4X4",
+        "Anio": "",
+        "Color": "GRIS ABISAL",
+        "Vin": "",
+        "Patente": "",
+        "Vendedor": "084067-BULACIO JAN NAHUEL",
+        "Sucursal": "1",
+        "Origen": "0",
+        "Estado": "Ingresado",
+        "Estadoavance": "Turno Entrega",
+        "Fechaprereserva": "01/04/2026",
+        "Fechaventa": "26/03/2026",
+        "Fechaentrega": "01/04/2026",
+        "Fechapatentamiento": "",
+        "Fechaproceso": "01/04/2026"
+      }
+    },
+    {
+      "seq": 13,
       "is_repeat": false,
       "prereserva": "26030040",
       "estadoavance": "Turno Entrega",
@@ -330,7 +576,46 @@
       }
     },
     {
-      "seq": 8,
+      "seq": 14,
+      "is_repeat": false,
+      "prereserva": "26020085",
+      "estadoavance": "Turno Entrega",
+      "expected_action": "append",
+      "accion_esperada_texto": "registro nuevo",
+      "changed_fields_count": 0,
+      "changes": [],
+      "data": {
+        "Prereserva": "26020085",
+        "Rubro": "12",
+        "Precioventa": "31700000",
+        "Cliente": "MEGG S.A.",
+        "Cuitcliente": "33-67756294-9",
+        "Email": "INFO@MEGG.COM.AR",
+        "Telefono": "543513238863",
+        "Domicilio": "BV LOS LIBANESES   6500",
+        "Localidad": "BO   LOS BOULEVARES",
+        "Provincia": "Cordoba",
+        "Codigounidad": "29437",
+        "Marca": "Pinerolo",
+        "Marcamodelo": "1226-FIAT STRADA FREEDOM CD 1.3 8V MT",
+        "Anio": "2026",
+        "Color": "BLANCO BANCHISA",
+        "Vin": "9BD281DKVTYBG3588",
+        "Patente": "AI184GP",
+        "Vendedor": "101034-MORRA SANTIAGO",
+        "Sucursal": "6",
+        "Origen": "0",
+        "Estado": "Ingresado",
+        "Estadoavance": "Turno Entrega",
+        "Fechaprereserva": "01/04/2026",
+        "Fechaventa": "19/03/2026",
+        "Fechaentrega": "01/04/2026",
+        "Fechapatentamiento": "27/03/2026",
+        "Fechaproceso": "01/04/2026"
+      }
+    },
+    {
+      "seq": 15,
       "is_repeat": true,
       "prereserva": "26040001",
       "estadoavance": "Facturada",
@@ -385,46 +670,46 @@
       }
     },
     {
-      "seq": 9,
+      "seq": 16,
       "is_repeat": false,
-      "prereserva": "26030006",
-      "estadoavance": "Autorizado",
+      "prereserva": "26030004",
+      "estadoavance": "Turno Entrega",
       "expected_action": "append",
       "accion_esperada_texto": "registro nuevo",
       "changed_fields_count": 0,
       "changes": [],
       "data": {
-        "Prereserva": "26030006",
+        "Prereserva": "26030004",
         "Rubro": "11",
-        "Precioventa": "42100000",
-        "Cliente": "DA TORRE CLAUDIO MARCELO",
-        "Cuitcliente": "20-14741285-2",
-        "Email": "PÑL,M@GMAIL.COM",
-        "Telefono": "543544579257",
-        "Domicilio": "LA USINA S/N RINCON DEL ESTE",
-        "Localidad": "MERLO JUNIN",
-        "Provincia": "San Luis",
-        "Codigounidad": "29532",
-        "Marca": "Pinerolo",
-        "Marcamodelo": "1260- FIAT TORO FREEDOM 1.3T",
+        "Precioventa": "44603000",
+        "Cliente": "CAÑARTE PAGANI VICTORIA",
+        "Cuitcliente": "27-47304792-1",
+        "Email": "cañartepaganivictoria@gmail.co",
+        "Telefono": "543517543683",
+        "Domicilio": "MZ 65 LOTE 16 S/N ALTOS DEL CH",
+        "Localidad": "CORDOBA",
+        "Provincia": "Cordoba",
+        "Codigounidad": "815",
+        "Marca": "Landcar",
+        "Marcamodelo": "1323-JEEP RENEGADE LONGITUDE 1.3T AT6",
         "Anio": "2026",
-        "Color": "GRIS GRANITO",
-        "Vin": "9882265R9TKG85062",
-        "Patente": "",
-        "Vendedor": "001003-ROVETTO MARCELO",
-        "Sucursal": "2",
+        "Color": "STING GREY",
+        "Vin": "9886114MSTK709720",
+        "Patente": "AI091HD",
+        "Vendedor": "550676-URIBURU AGUSTIN DN 36139028I",
+        "Sucursal": "7",
         "Origen": "0",
         "Estado": "Ingresado",
-        "Estadoavance": "Autorizado",
+        "Estadoavance": "Turno Entrega",
         "Fechaprereserva": "07/04/2026",
-        "Fechaventa": "",
-        "Fechaentrega": "",
-        "Fechapatentamiento": "",
+        "Fechaventa": "25/03/2026",
+        "Fechaentrega": "07/04/2026",
+        "Fechapatentamiento": "27/03/2026",
         "Fechaproceso": "07/04/2026"
       }
     },
     {
-      "seq": 10,
+      "seq": 17,
       "is_repeat": false,
       "prereserva": "26030070",
       "estadoavance": "Autorizado",
@@ -463,62 +748,7 @@
       }
     },
     {
-      "seq": 11,
-      "is_repeat": true,
-      "prereserva": "26030006",
-      "estadoavance": "Facturada",
-      "expected_action": "update",
-      "accion_esperada_texto": "actualizacion detectada",
-      "changed_fields_count": 3,
-      "changes": [
-        {
-          "field": "Localidad",
-          "old": "MERLO JUNIN",
-          "new": "MERLO"
-        },
-        {
-          "field": "Estadoavance",
-          "old": "Autorizado",
-          "new": "Facturada"
-        },
-        {
-          "field": "Fechaventa",
-          "old": "",
-          "new": "07/04/2026"
-        }
-      ],
-      "data": {
-        "Prereserva": "26030006",
-        "Rubro": "11",
-        "Precioventa": "42100000",
-        "Cliente": "DA TORRE CLAUDIO MARCELO",
-        "Cuitcliente": "20-14741285-2",
-        "Email": "PÑL,M@GMAIL.COM",
-        "Telefono": "543544579257",
-        "Domicilio": "LA USINA S/N RINCON DEL ESTE",
-        "Localidad": "MERLO",
-        "Provincia": "San Luis",
-        "Codigounidad": "29532",
-        "Marca": "Pinerolo",
-        "Marcamodelo": "1260- FIAT TORO FREEDOM 1.3T",
-        "Anio": "2026",
-        "Color": "GRIS GRANITO",
-        "Vin": "9882265R9TKG85062",
-        "Patente": "",
-        "Vendedor": "001003-ROVETTO MARCELO",
-        "Sucursal": "2",
-        "Origen": "0",
-        "Estado": "Ingresado",
-        "Estadoavance": "Facturada",
-        "Fechaprereserva": "07/04/2026",
-        "Fechaventa": "07/04/2026",
-        "Fechaentrega": "",
-        "Fechapatentamiento": "",
-        "Fechaproceso": "07/04/2026"
-      }
-    },
-    {
-      "seq": 12,
+      "seq": 18,
       "is_repeat": false,
       "prereserva": "26030068",
       "estadoavance": "Turno Entrega",
@@ -557,46 +787,7 @@
       }
     },
     {
-      "seq": 13,
-      "is_repeat": false,
-      "prereserva": "26020061",
-      "estadoavance": "Turno Entrega",
-      "expected_action": "append",
-      "accion_esperada_texto": "registro nuevo",
-      "changed_fields_count": 0,
-      "changes": [],
-      "data": {
-        "Prereserva": "26020061",
-        "Rubro": "11",
-        "Precioventa": "32391000",
-        "Cliente": "BIANCHI EDGARDO JORGE",
-        "Cuitcliente": "20-11603967-3",
-        "Email": "ejpiano@hotmail.com",
-        "Telefono": "543516203410",
-        "Domicilio": "ENTRE RIOS 662 B° VILLA YACOAN",
-        "Localidad": "VALLE HERMOSO",
-        "Provincia": "Cordoba",
-        "Codigounidad": "29424",
-        "Marca": "Pinerolo",
-        "Marcamodelo": "1226-FIAT STRADA FREEDOM CD 1.3 8V MT",
-        "Anio": "2026",
-        "Color": "GRIS SILVERSTONE",
-        "Vin": "9BD281DKVTYBG4423",
-        "Patente": "AI091HC",
-        "Vendedor": "102027-SEGURA LUCIO",
-        "Sucursal": "3",
-        "Origen": "0",
-        "Estado": "Ingresado",
-        "Estadoavance": "Turno Entrega",
-        "Fechaprereserva": "08/04/2026",
-        "Fechaventa": "20/03/2026",
-        "Fechaentrega": "08/04/2026",
-        "Fechapatentamiento": "25/03/2026",
-        "Fechaproceso": "08/04/2026"
-      }
-    },
-    {
-      "seq": 14,
+      "seq": 19,
       "is_repeat": false,
       "prereserva": "26040004",
       "estadoavance": "Asignado",
@@ -635,183 +826,42 @@
       }
     },
     {
-      "seq": 15,
-      "is_repeat": true,
-      "prereserva": "26040004",
+      "seq": 20,
+      "is_repeat": false,
+      "prereserva": "26030076",
       "estadoavance": "Autorizado",
-      "expected_action": "update",
-      "accion_esperada_texto": "actualizacion detectada",
-      "changed_fields_count": 1,
-      "changes": [
-        {
-          "field": "Estadoavance",
-          "old": "Asignado",
-          "new": "Autorizado"
-        }
-      ],
+      "expected_action": "append",
+      "accion_esperada_texto": "registro nuevo",
+      "changed_fields_count": 0,
+      "changes": [],
       "data": {
-        "Prereserva": "26040004",
+        "Prereserva": "26030076",
         "Rubro": "11",
-        "Precioventa": "38630000",
-        "Cliente": "ZAPATA MARIA CAROLINA",
-        "Cuitcliente": "27-28560410-4",
-        "Email": "CDOR.GONZALEZ@GMAIL.COM",
-        "Telefono": "542302533435",
-        "Domicilio": "AVENIDA SARMIENTO 1777",
-        "Localidad": "CHAPALEUFU",
-        "Provincia": "La Pampa",
-        "Codigounidad": "278",
-        "Marca": "Automont",
-        "Marcamodelo": "0208-HYUNDAI NEW CRETA SAFETY",
+        "Precioventa": "28200000",
+        "Cliente": "ESPINDOLA JAVIER OSCAR",
+        "Cuitcliente": "20-22036427-6",
+        "Email": "MV.AUTOMOTORES.CBA@GMAIL.COM.",
+        "Telefono": "543516680095",
+        "Domicilio": "MILAN 2756",
+        "Localidad": "CORDOBA",
+        "Provincia": "Cordoba",
+        "Codigounidad": "28847",
+        "Marca": "Pinerolo",
+        "Marcamodelo": "1208-FIAT CRONOS DRIVE 1.3 GSE BZ",
         "Anio": "2026",
-        "Color": "SHADOW GREY",
-        "Vin": "9BHPA81DEVP282645",
-        "Patente": "",
-        "Vendedor": "260004-Monjes Jeremias",
-        "Sucursal": "0",
+        "Color": "PLATA BARI",
+        "Vin": "8AP359AF2TU488953",
+        "Patente": "AH858IT",
+        "Vendedor": "100527-SANCHEZ DIEGO LEONARDO",
+        "Sucursal": "13",
         "Origen": "0",
         "Estado": "Ingresado",
         "Estadoavance": "Autorizado",
         "Fechaprereserva": "08/04/2026",
-        "Fechaventa": "",
+        "Fechaventa": "07/04/2026",
         "Fechaentrega": "",
-        "Fechapatentamiento": "",
+        "Fechapatentamiento": "29/01/2026",
         "Fechaproceso": "08/04/2026"
-      }
-    },
-    {
-      "seq": 16,
-      "is_repeat": true,
-      "prereserva": "26040004",
-      "estadoavance": "Facturada",
-      "expected_action": "update",
-      "accion_esperada_texto": "actualizacion detectada",
-      "changed_fields_count": 19,
-      "changes": [
-        {
-          "field": "Precioventa",
-          "old": "38630000",
-          "new": "64350000"
-        },
-        {
-          "field": "Cliente",
-          "old": "ZAPATA MARIA CAROLINA",
-          "new": "ESTANCIAS DEL TOTORAL S.A"
-        },
-        {
-          "field": "Cuitcliente",
-          "old": "27-28560410-4",
-          "new": "30-59130433-6"
-        },
-        {
-          "field": "Email",
-          "old": "CDOR.GONZALEZ@GMAIL.COM",
-          "new": "estanciasdeltotoral@gmail.com"
-        },
-        {
-          "field": "Telefono",
-          "old": "542302533435",
-          "new": "543525475170"
-        },
-        {
-          "field": "Domicilio",
-          "old": "AVENIDA SARMIENTO 1777",
-          "new": "JUAN B. JUSTO 1193"
-        },
-        {
-          "field": "Localidad",
-          "old": "CHAPALEUFU",
-          "new": "JESUS MARIA"
-        },
-        {
-          "field": "Provincia",
-          "old": "La Pampa",
-          "new": "Cordoba"
-        },
-        {
-          "field": "Codigounidad",
-          "old": "278",
-          "new": "61471"
-        },
-        {
-          "field": "Marca",
-          "old": "Automont",
-          "new": "Montironi"
-        },
-        {
-          "field": "Marcamodelo",
-          "old": "0208-HYUNDAI NEW CRETA SAFETY",
-          "new": "4839-FORD RANGER RNGR  XLT CC 3.0L V6 10AT 4W"
-        },
-        {
-          "field": "Color",
-          "old": "SHADOW GREY",
-          "new": "GRIS MAGNETIC"
-        },
-        {
-          "field": "Vin",
-          "old": "9BHPA81DEVP282645",
-          "new": "8AFBR01J1TJ034655"
-        },
-        {
-          "field": "Vendedor",
-          "old": "260004-Monjes Jeremias",
-          "new": "022089-CASASNOVAS"
-        },
-        {
-          "field": "Sucursal",
-          "old": "0",
-          "new": "1"
-        },
-        {
-          "field": "Estadoavance",
-          "old": "Autorizado",
-          "new": "Facturada"
-        },
-        {
-          "field": "Fechaprereserva",
-          "old": "08/04/2026",
-          "new": "09/04/2026"
-        },
-        {
-          "field": "Fechaventa",
-          "old": "",
-          "new": "09/04/2026"
-        },
-        {
-          "field": "Fechaproceso",
-          "old": "08/04/2026",
-          "new": "09/04/2026"
-        }
-      ],
-      "data": {
-        "Prereserva": "26040004",
-        "Rubro": "11",
-        "Precioventa": "64350000",
-        "Cliente": "ESTANCIAS DEL TOTORAL S.A",
-        "Cuitcliente": "30-59130433-6",
-        "Email": "estanciasdeltotoral@gmail.com",
-        "Telefono": "543525475170",
-        "Domicilio": "JUAN B. JUSTO 1193",
-        "Localidad": "JESUS MARIA",
-        "Provincia": "Cordoba",
-        "Codigounidad": "61471",
-        "Marca": "Montironi",
-        "Marcamodelo": "4839-FORD RANGER RNGR  XLT CC 3.0L V6 10AT 4W",
-        "Anio": "2026",
-        "Color": "GRIS MAGNETIC",
-        "Vin": "8AFBR01J1TJ034655",
-        "Patente": "",
-        "Vendedor": "022089-CASASNOVAS",
-        "Sucursal": "1",
-        "Origen": "0",
-        "Estado": "Ingresado",
-        "Estadoavance": "Facturada",
-        "Fechaprereserva": "09/04/2026",
-        "Fechaventa": "09/04/2026",
-        "Fechaentrega": "",
-        "Fechapatentamiento": "",
-        "Fechaproceso": "09/04/2026"
       }
     }
   ]

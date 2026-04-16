@@ -117,10 +117,33 @@ Resultado:
 - La raiz queda preparada para escalar a multiples automatizaciones.
 - `dataset` y `test` quedaron correctamente asociados a `etl_seguros`.
 
+### Fase 3 - COMPLETADA
+
+Se integro la auditoria en `automatizaciones/etl_seguros/etl.py` y se agrego modo dual de ejecucion.
+
+Cambios aplicados:
+- Integracion de `AuditLogger` con `id_proceso=1`, tracking de metricas/eventos y `persist()` en `finally`.
+- Modo dual por CLI con `argparse`:
+  - Produccion por defecto.
+  - Testing con `--testing`.
+- Nuevos argumentos documentados en `--help`:
+  - `--start-date YYYYMMDD` para carga historica en produccion.
+  - `--reset-watermark` para testing no interactivo.
+  - `--batch-size` y `--sleep-seconds` para control operativo de lotes.
+  - `--dry-run` para simulacro sin escrituras reales.
+- Produccion sin watermark y extraccion desde `Vista_Seguros`.
+- Testing con watermark incremental y actualizacion solo al final exitoso.
+- Proteccion de API de Google Sheets:
+  - particionado de payload por lotes,
+  - reintentos simples con backoff para 429/5xx,
+  - espera entre lotes para reducir riesgo de throttling.
+- Rutas robustas por ubicacion del script (incluye inyeccion de `sys.path` para importar `core`).
+- Se mantuvieron logs locales en paralelo a la auditoria de base de datos.
+
 ## Proxima sesion recomendada
 
-1. Fase 3: integrar `AuditLogger` en `automatizaciones/etl_seguros/etl.py` con `try/except/finally` y `persist()` en `finally`.
-2. Ajustar paths relativos del ETL si algun recurso quedo apuntando a raiz (por ejemplo `watermark.json`, logs, rutas de dataset).
-3. Validar ejecucion local del ETL en la nueva ubicacion y corregir imports/rutas.
-4. Definir carpeta de salida operativa por automatizacion (ej. `automatizaciones/etl_seguros/runtime/`).
-5. Iniciar Fase 4 con scaffold de `automatizaciones/aut_stock_web/` usando `core/template_automatizacion.py`.
+1. Validar ejecucion end-to-end con datos reales en ambos modos (`PRODUCCION` y `--testing`).
+2. Ejecutar pruebas de carga para ajustar `--batch-size` y `--sleep-seconds` segun cuota real de Google API.
+3. Confirmar en base de auditoria que se cumpla: 1 fila en `EJECUCION` y N filas en `LOG_PROCESOS` por chunking.
+4. Iniciar Fase 4 con scaffold de `automatizaciones/aut_stock_web/` usando `core/template_automatizacion.py`.
+5. Avanzar Fase 5 con tests unitarios para `core/audit_logger.py` y pruebas de smoke del ETL.

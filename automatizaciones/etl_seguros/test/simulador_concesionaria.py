@@ -403,11 +403,11 @@ def prepare_db_row(event: Dict[str, str]) -> Dict[str, Optional[str]]:
 def connect_db():
     load_dotenv()
     return mysql.connector.connect(
-        host=os.getenv("DB_HOST", "localhost"),
-        port=int(os.getenv("DB_PORT", "3306")),
-        user=os.getenv("DB_USER"),
-        password=os.getenv("DB_PASSWORD"),
-        database=os.getenv("DB_NAME"),
+        host=os.getenv("DB_HOST_TEST", "localhost"),
+        port=int(os.getenv("DB_PORT_TEST", "3306")),
+        user=os.getenv("DB_USER_TEST"),
+        password=os.getenv("DB_PASSWORD_TEST"),
+        database=os.getenv("DB_NAME_TEST"),
         connection_timeout=10,
         use_pure=True,
         charset="utf8mb4",
