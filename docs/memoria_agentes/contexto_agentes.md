@@ -1,17 +1,20 @@
-# GEMINI - Memoria de contexto
+# Memoria de contexto de agentes
 
-## Estado actual del repositorio
+## Estado final del proyecto
 
-- Proyecto principal vigente: sincronizacion MySQL -> Google Sheets en `etl.py`.
-- Estructura actual relevante en raiz: `etl.py`, `dataset/`, `test/`, `docs/`, `requirements.txt`.
-- `dataset/` y `test/` pertenecen funcionalmente al ETL actual.
-- Hay documentacion en borrador y posibilidad de ajustar reglas sin restricciones legacy fuertes.
+- Proyecto principal estabilizado: `automatizaciones/etl_seguros/etl.py`.
+- Estructura modular implementada con `core/` compartido y `automatizaciones/` por dominio.
+- La automatizacion soporta:
+  - Testing incremental (MySQL + watermark).
+  - Produccion SQL Server (query multi-sucursal por fecha).
+  - Auditoria transaccional en base de datos.
 
-## Objetivo estrategico acordado
+## Objetivo estrategico cumplido
 
-Estandarizar auditoria para todas las automatizaciones de la empresa con un modulo reusable en `core/`, evitando logica duplicada y manteniendo trazabilidad centralizada en base de datos.
+- Estandarizar auditoria para automatizaciones con un modulo reusable en `core/`.
+- Centralizar trazabilidad en BD y mantener logs locales de respaldo operativo.
 
-## Modelo de auditoria acordado
+## Modelo de auditoria implementado
 
 Tablas:
 
@@ -25,20 +28,16 @@ Tablas:
 - Persistencia de auditoria al final del flujo (`finally`).
 - Persistencia transaccional desde Python:
   - 1 insert en `EJECUCION`
-  - N inserts en `LOG_PROCESOS` por chunking
+  - N inserts en `LOG_PROCESOS` por chunking.
 - Estados validos: `EXITO`, `ADVERTENCIA`, `ERROR`.
-- Tags en el detalle:
-  - Obligatorios: `[INICIO]`, `[RESUMEN]`, `[FIN]`
-  - Opcionales: `[INFO]`, `[INSERT]`, `[UPDATE]`, `[DELETE]`, `[WARNING]`, `[ERROR]`
-- Zona horaria por defecto: `America/Argentina/Buenos_Aires` (configurable).
+- Tags de detalle aplicados con contrato acordado.
+- Zona horaria por defecto: `America/Argentina/Buenos_Aires`.
 
-## Directrices de diseno para `AuditLogger`
+## Estado de `AuditLogger`
 
-- Agnostico de dominio: metodos con IDs y entidades genericas.
-- Inyeccion de dependencias: `db_conn_factory` en constructor.
-- Construccion de detalle en memoria y particionado por tamano.
-- Limite de bloque recomendado: `10_000` caracteres por fila de `LOG_PROCESOS`.
-- Debe permitir resumen de updates y detalle por campo (`old -> new`).
+- Implementado y operativo en `core/audit_logger.py`.
+- Agnostico de dominio, con inyeccion de dependencias y chunking de detalle.
+- Integrado en ETL con tracking de inserts/updates/errores y `persist()` en `finally`.
 
 ## Estructura objetivo acordada
 
@@ -58,10 +57,16 @@ Tablas:
 
 ## Criterio de entornos
 
-- Desarrollo: usar `venv` local.
-- Produccion: aislamiento obligatorio por `venv` o contenedor.
-- `db_utils.py` definira factories por entorno (`TEST`/`PROD`) via `.env`.
+- Desarrollo: `venv` local.
+- Testing: MySQL incremental + watermark.
+- Produccion: SQL Server multi-sucursal por fecha (`YYYYMMDD`), con ejecucion cron esperada cada 4 horas.
+- Auditoria: MySQL por entorno (`AUDIT_DB_*`).
 
 ## Decisiones de lenguaje
 
 - Se adopta el termino formal: **automatizacion** (en lugar de bot).
+
+## Cierre y siguiente etapa
+
+- Proyecto dado por finalizado a nivel funcional.
+- Ultima etapa pendiente: refactorizacion del codigo para mejorar legibilidad, separacion por modulos y mantenibilidad sin alterar comportamiento.

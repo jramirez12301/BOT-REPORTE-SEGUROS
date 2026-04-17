@@ -156,6 +156,14 @@ Cambios aplicados:
 - Incorporar variables de entorno de SQL Server (`SQLSERVER_HOST`, `SQLSERVER_PORT`, `SQLSERVER_USER`, `SQLSERVER_PASSWORD`, `SQLSERVER_DRIVER`).
 - Mantener testing con la logica actual (MySQL + watermark).
 
+Estado: COMPLETADA.
+
+Implementado:
+- `core/db_utils.py` ahora soporta SQL Server con `pyodbc`.
+- Nuevas funciones: `build_sqlserver_config`, `create_sqlserver_connection`, `get_sqlserver_connection_factory`.
+- `requirements.txt` actualizado con `pyodbc>=5.1.0`.
+- `.env.example` actualizado con variables SQL Server adicionales (`SQLSERVER_DATABASE`, `SQLSERVER_DRIVER`, etc.).
+
 ### Fase 3.2 - Query productiva multi-sucursal (piloto TOP 50)
 
 - Agregar constante `PROD_EXTRACT_QUERY` en `automatizaciones/etl_seguros/etl.py`.
@@ -165,6 +173,13 @@ Cambios aplicados:
   - `'HYUNDAI' AS Sucursal_origen`
 - Aplicar `ORDER BY fechaprereserva ASC` externo para orden determinista.
 
+Estado: COMPLETADA.
+
+Implementado:
+- Se agrego constante `PROD_EXTRACT_QUERY` en `automatizaciones/etl_seguros/etl.py`.
+- Incluye `UNION ALL` con `TOP 50` por sucursal (FORD/HYUNDAI).
+- Incluye `ORDER BY fechaprereserva ASC` externo.
+
 ### Fase 3.3 - Adaptacion de schema y hoja
 
 - Agregar `Sucursal_origen` a `SHEET_COLUMNS` (nuevo total: 28 columnas).
@@ -172,11 +187,25 @@ Cambios aplicados:
   - hoja vacia => crea encabezado automaticamente,
   - encabezado existente invalido => error explicito.
 
+Estado: COMPLETADA.
+
+Implementado:
+- Se agrego `Sucursal_origen` a `SHEET_COLUMNS` (28 columnas).
+- Se adapto rango de filtro para que sea dinamico segun cantidad real de columnas (ya no queda fijo en `AA`).
+- Se mantiene regla de encabezado: autocreacion solo en hoja vacia/fila 1 vacia y error si existe encabezado invalido.
+
 ### Fase 3.4 - Manejo de errores SQL y auditoria
 
 - Envolver extraccion de produccion en `try/except` de errores operativos de SQL Server.
 - Registrar el error en `AuditLogger` con mensaje claro para soporte.
 - Mantener `persist()` en `finally` para garantizar trazabilidad.
+
+Estado: COMPLETADA.
+
+Implementado:
+- En produccion, la extraccion SQL Server ahora captura `pyodbc.Error`.
+- Se registra mensaje operativo claro en auditoria (`AuditLogger.record_error`) antes de propagar error.
+- Se mantiene `persist()` en `finally` para trazabilidad aun en fallos.
 
 ### Fase 3.5 - Validacion operativa previa a cron
 
@@ -185,3 +214,41 @@ Cambios aplicados:
   - 1 fila en `EJECUCION`,
   - N filas en `LOG_PROCESOS` por chunking.
 - Confirmar que la nueva columna `Sucursal_origen` se refleje correctamente en Google Sheets.
+
+Estado: PENDIENTE DE EJECUCION OPERATIVA.
+
+Checklist de validacion recomendado:
+- Ejecutar `python automatizaciones/etl_seguros/etl.py --dry-run --start-date 20260101`.
+- Verificar en auditoria: 1 fila en `EJECUCION` y N filas en `LOG_PROCESOS`.
+- Confirmar que el encabezado en hoja nueva incluya `Sucursal_origen`.
+- Confirmar que el orden y conteos de clasificacion sean consistentes para piloto TOP 50.
+
+### Fase 3.6 - Simplificacion final de query productiva
+
+- Unificar extraccion de produccion en una sola query parametrizada por `FechaPrereserva`.
+- Definir comportamiento operativo estable:
+  - `python etl.py` => usa fecha actual en formato `YYYYMMDD`.
+  - `python etl.py --start-date YYYYMMDD` => usa fecha definida por usuario (zero day/historico).
+- Eliminar ramas redundantes de query en produccion para simplificar mantenimiento.
+
+Estado: COMPLETADA.
+
+Implementado:
+- Se reemplazaron queries separadas por una unica constante `PROD_EXTRACT_QUERY`.
+- `build_runtime_config` ahora asigna fecha actual automaticamente en produccion si no se informa `--start-date`.
+- `extract_from_sqlserver_production` ejecuta siempre la query parametrizada con 2 parametros (Ford/Hyundai).
+- Se actualizo `--help` para reflejar el comportamiento real.
+
+### Cierre del proyecto
+
+Estado general: CERRADO A NIVEL FUNCIONAL.
+
+Alcance completado:
+- Arquitectura modular por fases.
+- Integracion de auditoria transaccional.
+- Soporte de entornos testing/produccion.
+- Conexion productiva a SQL Server.
+- Estabilizacion de query multi-sucursal y reglas operativas para cron + zero day.
+
+Ultimo paso pendiente (proxima etapa):
+- Refactorizar el codigo para reducir complejidad ciclomatica, separar funciones largas y mejorar mantenibilidad sin cambiar comportamiento.

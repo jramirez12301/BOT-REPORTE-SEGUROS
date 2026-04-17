@@ -6,9 +6,33 @@ import os
 from typing import Any, Callable
 
 import mysql.connector
+import pyodbc
 from dotenv import load_dotenv
 
 load_dotenv()
+
+
+def _resolve_sqlserver_driver(preferred_driver: str | None = None) -> str:
+    """Resolve a usable SQL Server ODBC driver from installed drivers."""
+    installed = set(pyodbc.drivers())
+
+    if preferred_driver and preferred_driver in installed:
+        return preferred_driver
+
+    preferred_candidates = [
+        "ODBC Driver 18 for SQL Server",
+        "ODBC Driver 17 for SQL Server",
+        "SQL Server Native Client 11.0",
+        "SQL Server",
+    ]
+    for candidate in preferred_candidates:
+        if candidate in installed:
+            return candidate
+
+    raise ValueError(
+        "No se encontro un driver ODBC compatible para SQL Server. "
+        f"Drivers instalados: {sorted(installed)}"
+    )
 
 
 def get_app_env(default: str = "TEST") -> str:
@@ -85,5 +109,75 @@ def get_audit_db_connection_factory(
 
     def _factory():
         return create_audit_connection(env=env, prefix=prefix, extra_config=extra_config)
+
+    return _factory
+
+
+def build_sqlserver_config(env: str | None = None, prefix: str = "SQLSERVER") -> dict[str, Any]:
+    """Build SQL Server config from .env with ENV suffix fallback."""
+    selected_env = (env or get_app_env(default="PROD")).strip().upper()
+
+    host = _require_env_value(f"{prefix}_HOST", selected_env)
+    user = _require_env_value(f"{prefix}_USER", selected_env)
+    password = _require_env_value(f"{prefix}_PASSWORD", selected_env)
+
+    port = int(_get_env_value(f"{prefix}_PORT", selected_env) or "1433")
+    database = _get_env_value(f"{prefix}_DATABASE", selected_env) or "master"
+    configured_driver = _get_env_value(f"{prefix}_DRIVER", selected_env)
+    driver = _resolve_sqlserver_driver(configured_driver)
+    timeout = int(_get_env_value(f"{prefix}_CONNECTION_TIMEOUT", selected_env) or "10")
+    encrypt = _get_env_value(f"{prefix}_ENCRYPT", selected_env) or "no"
+    trust_certificate = _get_env_value(f"{prefix}_TRUST_SERVER_CERTIFICATE", selected_env) or "yes"
+
+    return {
+        "host": host,
+        "port": port,
+        "database": database,
+        "user": user,
+        "password": password,
+        "driver": driver,
+        "timeout": timeout,
+        "encrypt": encrypt,
+        "trust_server_certificate": trust_certificate,
+    }
+
+
+def create_sqlserver_connection(
+    env: str | None = None,
+    prefix: str = "SQLSERVER",
+    extra_config: dict[str, Any] | None = None,
+):
+    """Create SQL Server connection with pyodbc."""
+    config = build_sqlserver_config(env=env, prefix=prefix)
+    if extra_config:
+        config.update(extra_config)
+
+    conn_str = (
+        f"DRIVER={{{config['driver']}}};"
+        f"SERVER={config['host']},{config['port']};"
+        f"DATABASE={config['database']};"
+        f"UID={config['user']};"
+        f"PWD={config['password']};"
+    )
+
+    # Encrypt/TrustServerCertificate aplican para drivers modernos.
+    if str(config["driver"]).startswith("ODBC Driver"):
+        conn_str += (
+            f"Encrypt={config['encrypt']};"
+            f"TrustServerCertificate={config['trust_server_certificate']};"
+        )
+
+    return pyodbc.connect(conn_str, timeout=int(config["timeout"]))
+
+
+def get_sqlserver_connection_factory(
+    env: str | None = None,
+    prefix: str = "SQLSERVER",
+    extra_config: dict[str, Any] | None = None,
+) -> Callable[[], Any]:
+    """Return deferred factory to create SQL Server connections."""
+
+    def _factory():
+        return create_sqlserver_connection(env=env, prefix=prefix, extra_config=extra_config)
 
     return _factory

@@ -2,6 +2,7 @@ import argparse
 import json
 import logging
 import os
+import re
 import sys
 import time
 import unicodedata
@@ -12,11 +13,11 @@ from pathlib import Path
 import gspread
 import mysql.connector
 import pandas as pd
+import pyodbc
 from dotenv import load_dotenv
 from google.oauth2.service_account import Credentials
 from gspread.exceptions import APIError, SpreadsheetNotFound, WorksheetNotFound
 from gspread.utils import rowcol_to_a1
-
 
 # Permite importar modulos de /core aunque el script se ejecute desde su carpeta.
 CURRENT_DIR = Path(__file__).resolve().parent
@@ -25,7 +26,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from core.audit_logger import AuditLogger
-from core.db_utils import get_audit_db_connection_factory
+from core.db_utils import create_sqlserver_connection, get_audit_db_connection_factory
 
 
 # Cargamos .env del proyecto para ambos modos de ejecucion.
@@ -33,35 +34,71 @@ load_dotenv(PROJECT_ROOT / ".env")
 
 # Constantes del modelo de hoja.
 WATERMARK_CANDIDATES = ["id_interno", "id"]
-SHEET_COLUMNS = [
+
+# Columnas de negocio usadas para extraer/comparar datos (nombres de BD).
+SHEET_COLUMNS_DB = [
     "Prereserva",
     "Rubro",
-    "Precioventa",
+    "PrecioVenta",
     "Cliente",
-    "Cuitcliente",
+    "CuitCliente",
     "Email",
     "Telefono",
     "Domicilio",
     "Localidad",
     "Provincia",
-    "Codigounidad",
+    "CodigoUnidad",
     "Marca",
-    "Marcamodelo",
+    "MarcaModelo",
     "Anio",
     "Color",
     "Vin",
     "Patente",
     "Vendedor",
     "Sucursal",
-    "Origen",
-    "Estado",
-    "Estadoavance",
-    "Fechaprereserva",
-    "Fechaventa",
-    "Fechaentrega",
-    "Fechapatentamiento",
-    "Fechaproceso",
+    "FechaPrereserva",
+    "FechaVenta",
+    "FechaEntrega",
 ]
+
+# Encabezados visibles en Google Sheets.
+# Aqui podemos mostrar acentos sin romper la lectura, porque validamos en forma canonica.
+SHEET_COLUMNS_SHEET = ["Año" if col == "Anio" else col for col in SHEET_COLUMNS_DB]
+
+
+# Query productiva unica multi-sucursal.
+# Siempre filtra por rango de fechas en FechaPrereserva.
+# - Si ejecutas sin fechas, usa hoy -> hoy.
+# - Si ejecutas con --start-date, toma ese inicio y cierra en --end-date o hoy.
+PROD_EXTRACT_QUERY = """
+SELECT *
+FROM (
+    SELECT *
+    FROM ProyautMonti.dbo.Vista_Seguros
+    WHERE FechaPrereserva >= ?
+      AND FechaPrereserva <= ?
+
+    UNION ALL
+
+    SELECT *
+    FROM ProyautAuto.dbo.Vista_Seguros
+    WHERE FechaPrereserva >= ?
+      AND FechaPrereserva <= ?
+) AS src
+ORDER BY FechaPrereserva ASC, Prereserva ASC;
+"""
+
+
+# Alias para tolerar diferencias de nombre entre origenes legacy y vista nueva.
+COLUMN_ALIASES = {
+    "PrecioVenta": ["PrecioVenta", "Precioventa"],
+    "CuitCliente": ["CuitCliente", "Cuitcliente"],
+    "CodigoUnidad": ["CodigoUnidad", "Codigounidad"],
+    "MarcaModelo": ["MarcaModelo", "Marcamodelo"],
+    "FechaPrereserva": ["FechaPrereserva", "Fechaprereserva"],
+    "FechaVenta": ["FechaVenta", "Fechaventa"],
+    "FechaEntrega": ["FechaEntrega", "Fechaentrega"],
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -91,8 +128,16 @@ def parse_args() -> argparse.Namespace:
         "--start-date",
         type=parse_start_date,
         help=(
-            "Solo en PRODUCCION. Formato YYYYMMDD para carga histórica. "
-            "Si se informa, ignora filtro por año actual y usa fechaprereserva >= fecha indicada."
+            "Solo en PRODUCCION. Formato YYYYMMDD para definir fecha inicial de carga. "
+            "Si no se informa, se usa la fecha de hoy."
+        ),
+    )
+    parser.add_argument(
+        "--end-date",
+        type=parse_start_date,
+        help=(
+            "Solo en PRODUCCION y junto con --start-date. Formato YYYYMMDD para definir fecha final. "
+            "Si no se informa, se usa la fecha de hoy."
         ),
     )
     parser.add_argument(
@@ -119,12 +164,12 @@ def parse_args() -> argparse.Namespace:
 
 
 def parse_start_date(value: str) -> str:
-    """Valida YYYYMMDD y devuelve YYYY-MM-DD para SQL parametrizado."""
+    """Valida YYYYMMDD y devuelve el mismo formato para SQL Server."""
     try:
         parsed = datetime.strptime(value, "%Y%m%d")
     except ValueError as exc:
         raise argparse.ArgumentTypeError("--start-date debe tener formato YYYYMMDD") from exc
-    return parsed.strftime("%Y-%m-%d")
+    return parsed.strftime("%Y%m%d")
 
 
 def setup_logging(log_file: Path) -> None:
@@ -177,8 +222,12 @@ def build_runtime_config(args: argparse.Namespace) -> dict:
         raise ValueError("--reset-watermark solo puede usarse junto con --testing")
     if args.start_date and is_testing:
         raise ValueError("--start-date solo aplica en modo PRODUCCION")
+    if args.end_date and is_testing:
+        raise ValueError("--end-date solo aplica en modo PRODUCCION")
+    if args.end_date and not args.start_date:
+        raise ValueError("--end-date requiere informar tambien --start-date")
 
-    db_name = get_env_required("DB_NAME_TEST") if is_testing else get_env_required("DB_NAME")
+    db_name = get_env_required("DB_NAME_TEST") if is_testing else None
     spreadsheet_id = (
         get_env_required("SPREADSHEET_ID_TEST") if is_testing else get_env_required("SPREADSHEET_ID")
     )
@@ -192,23 +241,35 @@ def build_runtime_config(args: argparse.Namespace) -> dict:
             return get_env_optional(prod_key, default)
         return get_env_required(prod_key)
 
-    db_config = {
-        "host": pick_db_value("DB_HOST_TEST", "DB_HOST"),
-        "port": int(pick_db_value("DB_PORT_TEST", "DB_PORT", default="3306")),
-        "user": pick_db_value("DB_USER_TEST", "DB_USER"),
-        "password": pick_db_value("DB_PASSWORD_TEST", "DB_PASSWORD"),
-        "database": db_name,
-        "connection_timeout": 10,
-        "use_pure": True,
-        "charset": "utf8mb4",
-        "collation": "utf8mb4_unicode_ci",
-        "use_unicode": True,
-    }
+    mysql_testing_config = None
+    if is_testing:
+        mysql_testing_config = {
+            "host": pick_db_value("DB_HOST_TEST", "DB_HOST"),
+            "port": int(pick_db_value("DB_PORT_TEST", "DB_PORT", default="3306")),
+            "user": pick_db_value("DB_USER_TEST", "DB_USER"),
+            "password": pick_db_value("DB_PASSWORD_TEST", "DB_PASSWORD"),
+            "database": db_name,
+            "connection_timeout": 10,
+            "use_pure": True,
+            "charset": "utf8mb4",
+            "collation": "utf8mb4_unicode_ci",
+            "use_unicode": True,
+        }
 
     runtime_dir = CURRENT_DIR
+    start_date = args.start_date
+    end_date = args.end_date
+    if not is_testing and not start_date:
+        # En produccion sin --start-date, usamos fecha actual en formato YYYYMMDD.
+        start_date = datetime.now().strftime("%Y%m%d")
+    if not is_testing and not end_date:
+        end_date = datetime.now().strftime("%Y%m%d")
+    if not is_testing and start_date and end_date and start_date > end_date:
+        raise ValueError("--start-date no puede ser mayor que --end-date")
+
     return {
         "is_testing": is_testing,
-        "db_config": db_config,
+        "mysql_testing_config": mysql_testing_config,
         "sheet_name": get_env_optional("SHEET_NAME", "Hoja 1"),
         "spreadsheet_id": spreadsheet_id,
         "credentials_file": resolve_credentials_file(),
@@ -217,12 +278,14 @@ def build_runtime_config(args: argparse.Namespace) -> dict:
         "batch_size": args.batch_size,
         "sleep_seconds": args.sleep_seconds,
         "dry_run": bool(args.dry_run),
-        "start_date": args.start_date,
+        "start_date": start_date,
+        "end_date": end_date,
         "audit_env": "TEST" if is_testing else "PROD",
     }
 
 
-def create_source_connection(db_config: dict):
+def create_source_connection_mysql(db_config: dict):
+    """Conexion MySQL para entorno testing."""
     connection = mysql.connector.connect(**db_config)
     connection.set_charset_collation(charset="utf8mb4", collation="utf8mb4_unicode_ci")
     return connection
@@ -236,6 +299,18 @@ def canonicalize_header_name(value: str) -> str:
     text = text.lower().replace(" ", "")
     aliases = {"ano": "anio"}
     return aliases.get(text, text)
+
+
+def resolve_source_value(row: pd.Series, target_column: str) -> str:
+    """Resuelve valor por columna usando aliases tolerantes entre vistas."""
+    candidates = COLUMN_ALIASES.get(target_column, [target_column])
+    for candidate in candidates:
+        if candidate in row:
+            value = normalize_cell_value(row.get(candidate, ""))
+            if target_column == "PrecioVenta":
+                return normalize_number_text(value)
+            return value
+    return ""
 
 
 def get_watermark(file_path: Path) -> int:
@@ -286,11 +361,11 @@ def resolve_watermark_field(connection) -> str:
 def extract_from_mysql_testing(last_id: int, db_config: dict) -> tuple[pd.DataFrame, str]:
     """Extrae incremental desde tabla Seguros para entorno TESTING."""
     try:
-        connection = create_source_connection(db_config)
+        connection = create_source_connection_mysql(db_config)
         watermark_field = resolve_watermark_field(connection)
         logging.info("Columna incremental detectada: %s", watermark_field)
 
-        columns_query = ", ".join([watermark_field] + SHEET_COLUMNS)
+        columns_query = ", ".join([watermark_field] + SHEET_COLUMNS_DB)
         query = (
             f"SELECT {columns_query} FROM Seguros "
             f"WHERE {watermark_field} > %s ORDER BY {watermark_field} ASC"
@@ -306,38 +381,48 @@ def extract_from_mysql_testing(last_id: int, db_config: dict) -> tuple[pd.DataFr
             connection.close()
 
 
-def extract_from_mysql_production(db_config: dict, start_date: str | None) -> pd.DataFrame:
-    """Extrae datos desde Vista_Seguros para entorno PRODUCCION."""
+def extract_from_sqlserver_production(start_date: str | None, end_date: str | None) -> pd.DataFrame:
+    """Extrae datos de produccion desde SQL Server multi-sucursal."""
+    query_start = start_date
+    query_end = end_date
     try:
-        connection = create_source_connection(db_config)
+        connection = create_sqlserver_connection(env="PROD")
+        cursor = connection.cursor()
+        if not query_start or not query_end:
+            raise ValueError("El rango de fechas para produccion no puede estar vacio")
 
-        if start_date:
-            query = (
-                "SELECT * FROM Vista_Seguros "
-                "WHERE fechaprereserva >= %s "
-                "ORDER BY fechaprereserva ASC, prereserva ASC"
-            )
-            params = (start_date,)
-            logging.info("Extraccion produccion en modo historico desde fecha=%s", start_date)
-        else:
-            current_year = datetime.now().year
-            query = (
-                "SELECT * FROM Vista_Seguros "
-                "WHERE anio >= %s "
-                "ORDER BY fechaprereserva ASC, prereserva ASC"
-            )
-            params = (current_year,)
-            logging.info("Extraccion produccion por anio actual=%s", current_year)
+        params = (query_start, query_end, query_start, query_end)
+        logging.info(
+            "Extraccion SQL Server produccion en rango FechaPrereserva [%s - %s]",
+            query_start,
+            query_end,
+        )
+        cursor.execute(PROD_EXTRACT_QUERY, params)
 
-        df = pd.read_sql(query, connection, params=params)
+        rows = cursor.fetchall()
+        columns = [col[0] for col in cursor.description]
+        df = pd.DataFrame.from_records(rows, columns=columns)
         logging.info("Extraccion produccion exitosa. Registros obtenidos=%s", len(df))
         return df
+    except pyodbc.Error as e:
+        logging.error(
+            "Error operativo de SQL Server en extraccion de produccion: %s | drivers=%s",
+            e,
+            pyodbc.drivers(),
+            exc_info=True,
+        )
+        raise
     except Exception as e:
-        logging.error("Error al extraer datos en produccion: %s", e, exc_info=True)
+        logging.error("Error general al extraer datos en produccion: %s", e, exc_info=True)
         raise
     finally:
-        if "connection" in locals() and connection.is_connected():
-            connection.close()
+        if "connection" in locals():
+            try:
+                if "cursor" in locals():
+                    cursor.close()
+                connection.close()
+            except Exception:
+                pass
 
 
 def process_data(df: pd.DataFrame) -> pd.DataFrame:
@@ -377,6 +462,10 @@ def normalize_number_text(text: str) -> str:
     if not raw:
         return ""
 
+    # Caso miles con puntos sin decimales: 53.785.000 -> 53785000
+    if re.match(r"^\d{1,3}(\.\d{3})+$", raw):
+        raw = raw.replace(".", "")
+
     # Si viene con formato latino 51.060.000,00 -> 51060000.00
     if "." in raw and "," in raw:
         raw = raw.replace(".", "").replace(",", ".")
@@ -401,9 +490,16 @@ def normalize_for_comparison(column_name: str, value) -> str:
     if not text:
         return ""
 
-    numeric_like_columns = {"Precioventa", "Anio", "Origen"}
+    numeric_like_columns = {"PrecioVenta", "Anio"}
     if column_name in numeric_like_columns:
         return normalize_number_text(text)
+
+    # Algunas columnas llegan con ceros a la izquierda desde BD
+    # (ej: CodigoUnidad=00061256, Sucursal=01), pero Sheets suele mostrarlas sin cero.
+    # Para evitar updates innecesarios, comparamos estas columnas por valor numerico.
+    leading_zero_columns = {"CodigoUnidad", "Sucursal", "MarcaModelo"}
+    if column_name in leading_zero_columns and text.isdigit():
+        return str(int(text))
 
     return text
 
@@ -416,12 +512,12 @@ def read_sheet_snapshot(worksheet, sleep_seconds: float) -> tuple[dict, dict]:
             logging.info("La hoja esta vacia. Se crea encabezado canonico automaticamente.")
 
             # Si es una hoja nueva, inicializamos la fila de encabezados.
-            header_end = rowcol_to_a1(1, len(SHEET_COLUMNS))
+            header_end = rowcol_to_a1(1, len(SHEET_COLUMNS_SHEET))
             header_range = f"A1:{header_end}"
             execute_with_retry(
                 action=lambda: worksheet.update(
-                    header_range,
-                    [SHEET_COLUMNS],
+                    range_name=header_range,
+                    values=[SHEET_COLUMNS_SHEET],
                     value_input_option="USER_ENTERED",
                 ),
                 action_name="creacion de encabezado en hoja vacia",
@@ -435,8 +531,9 @@ def read_sheet_snapshot(worksheet, sleep_seconds: float) -> tuple[dict, dict]:
                     action_name="freeze encabezado inicial",
                     sleep_seconds=sleep_seconds,
                 )
+                filter_end = rowcol_to_a1(1, len(SHEET_COLUMNS_SHEET))
                 execute_with_retry(
-                    action=lambda: worksheet.set_basic_filter("A1:AA1"),
+                    action=lambda: worksheet.set_basic_filter(f"A1:{filter_end}"),
                     action_name="filtro inicial",
                     sleep_seconds=sleep_seconds,
                 )
@@ -456,12 +553,12 @@ def read_sheet_snapshot(worksheet, sleep_seconds: float) -> tuple[dict, dict]:
                 "Se detecto fila de encabezado vacia. Se crea encabezado canonico automaticamente."
             )
 
-            header_end = rowcol_to_a1(1, len(SHEET_COLUMNS))
+            header_end = rowcol_to_a1(1, len(SHEET_COLUMNS_SHEET))
             header_range = f"A1:{header_end}"
             execute_with_retry(
                 action=lambda: worksheet.update(
-                    header_range,
-                    [SHEET_COLUMNS],
+                    range_name=header_range,
+                    values=[SHEET_COLUMNS_SHEET],
                     value_input_option="USER_ENTERED",
                 ),
                 action_name="creacion de encabezado en fila 1 vacia",
@@ -474,8 +571,9 @@ def read_sheet_snapshot(worksheet, sleep_seconds: float) -> tuple[dict, dict]:
                     action_name="freeze encabezado inicial",
                     sleep_seconds=sleep_seconds,
                 )
+                filter_end = rowcol_to_a1(1, len(SHEET_COLUMNS_SHEET))
                 execute_with_retry(
-                    action=lambda: worksheet.set_basic_filter("A1:AA1"),
+                    action=lambda: worksheet.set_basic_filter(f"A1:{filter_end}"),
                     action_name="filtro inicial",
                     sleep_seconds=sleep_seconds,
                 )
@@ -488,7 +586,7 @@ def read_sheet_snapshot(worksheet, sleep_seconds: float) -> tuple[dict, dict]:
             return {}, {}
 
         header = [normalize_cell_value(col) for col in all_values[0]]
-        expected_header = SHEET_COLUMNS
+        expected_header = SHEET_COLUMNS_SHEET
         received_canonical = [canonicalize_header_name(col) for col in header[: len(expected_header)]]
         expected_canonical = [canonicalize_header_name(col) for col in expected_header]
 
@@ -509,7 +607,7 @@ def read_sheet_snapshot(worksheet, sleep_seconds: float) -> tuple[dict, dict]:
         duplicates = 0
 
         for row_number, row in enumerate(all_values[1:], start=2):
-            row_27 = (row + [""] * len(SHEET_COLUMNS))[: len(SHEET_COLUMNS)]
+            row_27 = (row + [""] * len(SHEET_COLUMNS_SHEET))[: len(SHEET_COLUMNS_SHEET)]
             normalized_row = [normalize_cell_value(value) for value in row_27]
             prereserva = normalized_row[0]
 
@@ -544,7 +642,7 @@ def classify_records(df: pd.DataFrame, sheet_index: dict, sheet_rows: dict) -> t
     noop_count = 0
 
     for _, row in df.iterrows():
-        mysql_row = [normalize_cell_value(row.get(col, "")) for col in SHEET_COLUMNS]
+        mysql_row = [resolve_source_value(row, col) for col in SHEET_COLUMNS_DB]
         prereserva = mysql_row[0]
 
         if not prereserva:
@@ -556,9 +654,9 @@ def classify_records(df: pd.DataFrame, sheet_index: dict, sheet_rows: dict) -> t
             logging.info("Prereserva %s -> INSERCION", prereserva)
             continue
 
-        sheet_row = sheet_rows.get(prereserva, [""] * len(SHEET_COLUMNS))
+        sheet_row = sheet_rows.get(prereserva, [""] * len(SHEET_COLUMNS_SHEET))
         changed_fields = []
-        for column_name, old_value, new_value in zip(SHEET_COLUMNS, sheet_row, mysql_row):
+        for column_name, old_value, new_value in zip(SHEET_COLUMNS_DB, sheet_row, mysql_row):
             old_cmp = normalize_for_comparison(column_name, old_value)
             new_cmp = normalize_for_comparison(column_name, new_value)
             if old_cmp != new_cmp:
@@ -633,7 +731,7 @@ def batch_update_existing_rows(worksheet, updates: list, batch_size: int, sleep_
             for item in batch:
                 row_number = int(item["row_number"])
                 start_a1 = rowcol_to_a1(row_number, 1)
-                end_a1 = rowcol_to_a1(row_number, len(SHEET_COLUMNS))
+                end_a1 = rowcol_to_a1(row_number, len(SHEET_COLUMNS_SHEET))
                 range_a1 = f"{start_a1}:{end_a1}"
                 data.append({"range": range_a1, "values": [item["values"]]})
 
@@ -684,7 +782,8 @@ def ensure_sheet_filter(worksheet, total_data_rows: int, sleep_seconds: float) -
     """Aplica freeze/filtro como mejora visual sin bloquear el proceso."""
     try:
         last_row = max(1, int(total_data_rows) + 1)
-        filter_range = f"A1:AA{last_row}"
+        filter_end = rowcol_to_a1(last_row, len(SHEET_COLUMNS_SHEET))
+        filter_range = f"A1:{filter_end}"
         execute_with_retry(
             action=lambda: worksheet.freeze(rows=1),
             action_name="freeze encabezado",
@@ -804,15 +903,28 @@ def main():
             last_id = confirm_or_reset_watermark(args, runtime["watermark_file"], last_id)
             print(f"[INFO] Marca de agua actual: {last_id}")
 
-            df, watermark_field = extract_from_mysql_testing(last_id, runtime["db_config"])
+            df, watermark_field = extract_from_mysql_testing(last_id, runtime["mysql_testing_config"])
             if not df.empty:
                 if watermark_field not in df.columns:
                     raise KeyError(f"No se encontro la columna de marca de agua '{watermark_field}'.")
                 new_last_id = int(df[watermark_field].max())
         else:
-            df = extract_from_mysql_production(runtime["db_config"], runtime["start_date"])
-            if runtime["start_date"]:
-                audit.record_info(f"Carga historica habilitada desde {runtime['start_date']}")
+            try:
+                df = extract_from_sqlserver_production(
+                    start_date=runtime["start_date"],
+                    end_date=runtime["end_date"],
+                )
+            except pyodbc.Error as sql_exc:
+                sql_msg = (
+                    "Error operativo SQL Server en extraccion de produccion. "
+                    "Verifica acceso, nombre de base y permisos de lectura."
+                )
+                audit.record_error(f"{sql_msg} Detalle: {sql_exc}")
+                raise
+            if runtime["start_date"] and runtime["end_date"]:
+                audit.record_info(
+                    f"Rango de carga aplicado: {runtime['start_date']} -> {runtime['end_date']}"
+                )
 
         audit.set_metric("extraidos", len(df))
         print(f"[INFO] Registros extraidos desde MySQL: {len(df)}")
