@@ -147,3 +147,41 @@ Cambios aplicados:
 3. Confirmar en base de auditoria que se cumpla: 1 fila en `EJECUCION` y N filas en `LOG_PROCESOS` por chunking.
 4. Iniciar Fase 4 con scaffold de `automatizaciones/aut_stock_web/` usando `core/template_automatizacion.py`.
 5. Avanzar Fase 5 con tests unitarios para `core/audit_logger.py` y pruebas de smoke del ETL.
+
+## Nuevas fases acordadas (Produccion SQL Server)
+
+### Fase 3.1 - Conexion SQL Server para produccion
+
+- Actualizar `core/db_utils.py` para soportar conexion a SQL Server con `pyodbc`.
+- Incorporar variables de entorno de SQL Server (`SQLSERVER_HOST`, `SQLSERVER_PORT`, `SQLSERVER_USER`, `SQLSERVER_PASSWORD`, `SQLSERVER_DRIVER`).
+- Mantener testing con la logica actual (MySQL + watermark).
+
+### Fase 3.2 - Query productiva multi-sucursal (piloto TOP 50)
+
+- Agregar constante `PROD_EXTRACT_QUERY` en `automatizaciones/etl_seguros/etl.py`.
+- Implementar `UNION ALL` entre `ProyautMonti.dbo.Vista_Seguros` y `ProyautAuto.dbo.Vista_Seguros`.
+- Inyectar columnas fijas de origen:
+  - `'FORD' AS Sucursal_origen`
+  - `'HYUNDAI' AS Sucursal_origen`
+- Aplicar `ORDER BY fechaprereserva ASC` externo para orden determinista.
+
+### Fase 3.3 - Adaptacion de schema y hoja
+
+- Agregar `Sucursal_origen` a `SHEET_COLUMNS` (nuevo total: 28 columnas).
+- Conservar regla actual:
+  - hoja vacia => crea encabezado automaticamente,
+  - encabezado existente invalido => error explicito.
+
+### Fase 3.4 - Manejo de errores SQL y auditoria
+
+- Envolver extraccion de produccion en `try/except` de errores operativos de SQL Server.
+- Registrar el error en `AuditLogger` con mensaje claro para soporte.
+- Mantener `persist()` en `finally` para garantizar trazabilidad.
+
+### Fase 3.5 - Validacion operativa previa a cron
+
+- Ejecutar pruebas en `--dry-run` con query piloto (TOP 50) sin escritura real en Sheets.
+- Validar que la auditoria cumpla:
+  - 1 fila en `EJECUCION`,
+  - N filas en `LOG_PROCESOS` por chunking.
+- Confirmar que la nueva columna `Sucursal_origen` se refleje correctamente en Google Sheets.
