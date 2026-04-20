@@ -239,6 +239,21 @@ Implementado:
 - `extract_from_sqlserver_production` ejecuta siempre la query parametrizada con 2 parametros (Ford/Hyundai).
 - Se actualizo `--help` para reflejar el comportamiento real.
 
+### Fase 3.7 - Clave compuesta por origen de sucursal
+
+- Resolver colision de `Prereserva` entre bases (Ford/Hyundai) usando clave compuesta de negocio.
+- Incorporar columna `Sucursal_origen` en la extraccion SQL Server.
+- Ajustar clasificacion en ETL para comparar por `Prereserva + Sucursal_origen`.
+
+Estado: COMPLETADA.
+
+Implementado:
+- Query productiva agrega `Sucursal_origen` estatico por fuente (`FORD` / `HYUNDAI`).
+- Se agrego `Sucursal_origen` a `SHEET_COLUMNS_DB`.
+- Se agrego helper `build_entity_key(prereserva, sucursal_origen)`.
+- `read_sheet_snapshot` y `classify_records` migraron a indice por clave compuesta.
+- Auditoria de inserts/updates ahora reporta `entity_id` compuesto para trazabilidad correcta.
+
 ### Cierre del proyecto
 
 Estado general: CERRADO A NIVEL FUNCIONAL.
@@ -252,3 +267,7 @@ Alcance completado:
 
 Ultimo paso pendiente (proxima etapa):
 - Refactorizar el codigo para reducir complejidad ciclomatica, separar funciones largas y mejorar mantenibilidad sin cambiar comportamiento.
+
+Nota de seguimiento:
+- A futuro, para sumar nuevas sucursales (Peugeot/Jeep/Fiat), agregar nuevos bloques `UNION ALL` con su `Sucursal_origen`.
+- Si vuelve `FechaPatentamiento`, se incorpora en columnas esperadas y en hoja sin cambiar el enfoque de clave compuesta.

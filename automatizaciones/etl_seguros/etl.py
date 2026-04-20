@@ -56,36 +56,46 @@ SHEET_COLUMNS_DB = [
     "Patente",
     "Vendedor",
     "Sucursal",
+    "Sucursal_origen",
     "FechaPrereserva",
     "FechaVenta",
     "FechaEntrega",
 ]
 
 # Encabezados visibles en Google Sheets.
-# Aqui podemos mostrar acentos sin romper la lectura, porque validamos en forma canonica.
-SHEET_COLUMNS_SHEET = ["Año" if col == "Anio" else col for col in SHEET_COLUMNS_DB]
+# Aqui podemos mostrar acentos/etiquetas de negocio sin romper la lectura.
+SHEET_COLUMNS_SHEET = [
+    "Año" if col == "Anio" else
+    "NroSucursal" if col == "Sucursal" else
+    "Sucursal" if col == "Sucursal_origen" else
+    col
+    for col in SHEET_COLUMNS_DB
+]
 
 
 # Query productiva unica multi-sucursal.
 # Siempre filtra por rango de fechas en FechaPrereserva.
-# - Si ejecutas sin fechas, usa hoy -> hoy.
-# - Si ejecutas con --start-date, toma ese inicio y cierra en --end-date o hoy.
+# Incluye Sucursal_origen para resolver claves repetidas entre bases.
 PROD_EXTRACT_QUERY = """
 SELECT *
 FROM (
-    SELECT *
+    SELECT
+        'FORD' AS Sucursal_origen,
+        *
     FROM ProyautMonti.dbo.Vista_Seguros
     WHERE FechaPrereserva >= ?
       AND FechaPrereserva <= ?
 
     UNION ALL
 
-    SELECT *
+    SELECT
+        'HYUNDAI' AS Sucursal_origen,
+        *
     FROM ProyautAuto.dbo.Vista_Seguros
     WHERE FechaPrereserva >= ?
       AND FechaPrereserva <= ?
 ) AS src
-ORDER BY FechaPrereserva ASC, Prereserva ASC;
+ORDER BY FechaPrereserva ASC, Prereserva ASC, Sucursal_origen ASC;
 """
 
 
@@ -98,7 +108,13 @@ COLUMN_ALIASES = {
     "FechaPrereserva": ["FechaPrereserva", "Fechaprereserva"],
     "FechaVenta": ["FechaVenta", "Fechaventa"],
     "FechaEntrega": ["FechaEntrega", "Fechaentrega"],
+    "Sucursal_origen": ["Sucursal_origen", "sucursal_origen", "SUCURSAL_ORIGEN"],
 }
+
+
+def build_entity_key(prereserva: str, sucursal_origen: str) -> str:
+    """Genera clave compuesta de negocio para evitar cruces entre sucursales."""
+    return f"{normalize_cell_value(prereserva)}|{normalize_cell_value(sucursal_origen)}"
 
 
 def parse_args() -> argparse.Namespace:
@@ -298,7 +314,48 @@ def canonicalize_header_name(value: str) -> str:
     text = "".join(ch for ch in text if not unicodedata.combining(ch))
     text = text.lower().replace(" ", "")
     aliases = {"ano": "anio"}
+    aliases.update(
+        {
+            "sucursalorigen": "sucursal_origen",
+        }
+    )
     return aliases.get(text, text)
+
+
+def validate_sheet_header(header: list[str], expected_header: list[str]) -> None:
+    """Valida encabezado de hoja con compatibilidad para nombres legacy."""
+    received_canonical = [canonicalize_header_name(col) for col in header[: len(expected_header)]]
+    expected_canonical = [canonicalize_header_name(col) for col in expected_header]
+
+    # Compatibilidad por posicion:
+    # - Columna 19 (Sucursal) puede venir como Sucursal o NroSucursal.
+    # - Columna 20 (Sucursal_origen) puede venir como Sucursal_origen o Sucursal.
+    idx_sucursal = SHEET_COLUMNS_DB.index("Sucursal")
+    idx_origen = SHEET_COLUMNS_DB.index("Sucursal_origen")
+
+    for idx, received in enumerate(received_canonical):
+        if idx == idx_sucursal:
+            if received not in {"sucursal", "nrosucursal"}:
+                raise ValueError(
+                    "Encabezado invalido en Google Sheets. "
+                    f"Columna {idx + 1} esperada Sucursal/NroSucursal y recibida='{header[idx]}'"
+                )
+            continue
+
+        if idx == idx_origen:
+            if received not in {"sucursal_origen", "sucursal"}:
+                raise ValueError(
+                    "Encabezado invalido en Google Sheets. "
+                    f"Columna {idx + 1} esperada Sucursal_origen/Sucursal y recibida='{header[idx]}'"
+                )
+            continue
+
+        expected = expected_canonical[idx]
+        if received != expected:
+            raise ValueError(
+                "Encabezado invalido en Google Sheets. "
+                f"Esperado={expected_header} | Recibido={header[:len(expected_header)]}"
+            )
 
 
 def resolve_source_value(row: pd.Series, target_column: str) -> str:
@@ -426,7 +483,7 @@ def extract_from_sqlserver_production(start_date: str | None, end_date: str | No
 
 
 def process_data(df: pd.DataFrame) -> pd.DataFrame:
-    """Elimina duplicados por Prereserva conservando el registro mas reciente."""
+    """Elimina duplicados por clave compuesta conservando el registro mas reciente."""
     if df.empty:
         logging.info("El DataFrame esta vacio, no hay datos para procesar.")
         return df
@@ -435,8 +492,15 @@ def process_data(df: pd.DataFrame) -> pd.DataFrame:
         if "Prereserva" not in df.columns:
             raise KeyError("No se encontro la columna requerida 'Prereserva' en los datos extraidos.")
 
+        origen_candidates = COLUMN_ALIASES.get("Sucursal_origen", ["Sucursal_origen"])
+        origen_col = next((col for col in origen_candidates if col in df.columns), None)
+        if not origen_col:
+            raise KeyError(
+                "No se encontro la columna requerida 'Sucursal_origen' en los datos extraidos."
+            )
+
         initial_count = len(df)
-        df_clean = df.drop_duplicates(subset=["Prereserva"], keep="last")
+        df_clean = df.drop_duplicates(subset=["Prereserva", origen_col], keep="last")
         final_count = len(df_clean)
         logging.info("Deduplicacion completada: %s -> %s", initial_count, final_count)
         return df_clean
@@ -462,15 +526,32 @@ def normalize_number_text(text: str) -> str:
     if not raw:
         return ""
 
-    # Caso miles con puntos sin decimales: 53.785.000 -> 53785000
-    if re.match(r"^\d{1,3}(\.\d{3})+$", raw):
-        raw = raw.replace(".", "")
+    # Limpia simbolos comunes de moneda/etiquetas para comparar valor real.
+    raw = raw.upper().replace("ARS", "").replace("$", "")
+    raw = re.sub(r"[^0-9,\.\-]", "", raw)
+    if not raw or raw in {"-", ".", ","}:
+        return ""
 
-    # Si viene con formato latino 51.060.000,00 -> 51060000.00
+    # Resolver separadores para formatos latinos y anglos.
     if "." in raw and "," in raw:
-        raw = raw.replace(".", "").replace(",", ".")
+        last_dot = raw.rfind(".")
+        last_comma = raw.rfind(",")
+        if last_comma > last_dot:
+            # Formato latino: 50.160.000,00
+            raw = raw.replace(".", "").replace(",", ".")
+        else:
+            # Formato anglo: 50,160,000.00
+            raw = raw.replace(",", "")
     elif "," in raw:
-        raw = raw.replace(",", ".")
+        # Solo comas: puede ser miles o decimal.
+        if re.match(r"^-?\d{1,3}(,\d{3})+$", raw):
+            raw = raw.replace(",", "")
+        else:
+            raw = raw.replace(",", ".")
+    elif "." in raw:
+        # Solo puntos: puede ser miles o decimal.
+        if re.match(r"^-?\d{1,3}(\.\d{3})+$", raw):
+            raw = raw.replace(".", "")
 
     try:
         number = Decimal(raw)
@@ -587,14 +668,7 @@ def read_sheet_snapshot(worksheet, sleep_seconds: float) -> tuple[dict, dict]:
 
         header = [normalize_cell_value(col) for col in all_values[0]]
         expected_header = SHEET_COLUMNS_SHEET
-        received_canonical = [canonicalize_header_name(col) for col in header[: len(expected_header)]]
-        expected_canonical = [canonicalize_header_name(col) for col in expected_header]
-
-        if received_canonical != expected_canonical:
-            raise ValueError(
-                "Encabezado invalido en Google Sheets. "
-                f"Esperado={expected_header} | Recibido={header[:len(expected_header)]}"
-            )
+        validate_sheet_header(header, expected_header)
 
         if header[: len(expected_header)] != expected_header:
             logging.info(
@@ -602,31 +676,33 @@ def read_sheet_snapshot(worksheet, sleep_seconds: float) -> tuple[dict, dict]:
                 "Se continua con el orden canonico interno."
             )
 
-        index_by_prereserva = {}
-        row_values_by_prereserva = {}
+        index_by_entity = {}
+        row_values_by_entity = {}
         duplicates = 0
 
         for row_number, row in enumerate(all_values[1:], start=2):
             row_27 = (row + [""] * len(SHEET_COLUMNS_SHEET))[: len(SHEET_COLUMNS_SHEET)]
             normalized_row = [normalize_cell_value(value) for value in row_27]
             prereserva = normalized_row[0]
+            sucursal_origen = normalized_row[SHEET_COLUMNS_DB.index("Sucursal_origen")]
+            entity_key = build_entity_key(prereserva, sucursal_origen)
 
-            if not prereserva:
+            if not prereserva or not sucursal_origen:
                 continue
-            if prereserva in index_by_prereserva:
+            if entity_key in index_by_entity:
                 duplicates += 1
 
-            index_by_prereserva[prereserva] = row_number
-            row_values_by_prereserva[prereserva] = normalized_row
+            index_by_entity[entity_key] = row_number
+            row_values_by_entity[entity_key] = normalized_row
 
         if duplicates > 0:
             logging.warning(
-                "Se detectaron %s Prereservas duplicadas en la hoja. Se usa la ultima fila encontrada.",
+                "Se detectaron %s claves compuestas duplicadas en la hoja. Se usa la ultima fila encontrada.",
                 duplicates,
             )
 
-        logging.info("Estado de la hoja cargado. Filas indexadas=%s", len(index_by_prereserva))
-        return index_by_prereserva, row_values_by_prereserva
+        logging.info("Estado de la hoja cargado. Filas indexadas=%s", len(index_by_entity))
+        return index_by_entity, row_values_by_entity
     except Exception as e:
         logging.error("Error al leer snapshot de Google Sheets: %s", e, exc_info=True)
         raise
@@ -644,17 +720,22 @@ def classify_records(df: pd.DataFrame, sheet_index: dict, sheet_rows: dict) -> t
     for _, row in df.iterrows():
         mysql_row = [resolve_source_value(row, col) for col in SHEET_COLUMNS_DB]
         prereserva = mysql_row[0]
+        sucursal_origen = mysql_row[SHEET_COLUMNS_DB.index("Sucursal_origen")]
+        entity_key = build_entity_key(prereserva, sucursal_origen)
 
         if not prereserva:
             logging.warning("Registro omitido: Prereserva vacio tras normalizacion.")
             continue
-
-        if prereserva not in sheet_index:
-            append_rows.append(mysql_row)
-            logging.info("Prereserva %s -> INSERCION", prereserva)
+        if not sucursal_origen:
+            logging.warning("Registro omitido: Sucursal_origen vacio tras normalizacion.")
             continue
 
-        sheet_row = sheet_rows.get(prereserva, [""] * len(SHEET_COLUMNS_SHEET))
+        if entity_key not in sheet_index:
+            append_rows.append(mysql_row)
+            logging.info("Entidad %s -> INSERCION", entity_key)
+            continue
+
+        sheet_row = sheet_rows.get(entity_key, [""] * len(SHEET_COLUMNS_SHEET))
         changed_fields = []
         for column_name, old_value, new_value in zip(SHEET_COLUMNS_DB, sheet_row, mysql_row):
             old_cmp = normalize_for_comparison(column_name, old_value)
@@ -665,16 +746,16 @@ def classify_records(df: pd.DataFrame, sheet_index: dict, sheet_rows: dict) -> t
         if changed_fields:
             updates.append(
                 {
-                    "entity_id": prereserva,
-                    "row_number": sheet_index[prereserva],
+                    "entity_id": entity_key,
+                    "row_number": sheet_index[entity_key],
                     "values": mysql_row,
                     "changes": changed_fields,
                 }
             )
-            logging.info("Prereserva %s -> ACTUALIZACION (%s campos)", prereserva, len(changed_fields))
+            logging.info("Entidad %s -> ACTUALIZACION (%s campos)", entity_key, len(changed_fields))
         else:
             noop_count += 1
-            logging.info("Prereserva %s -> SIN_CAMBIOS", prereserva)
+            logging.info("Entidad %s -> SIN_CAMBIOS", entity_key)
 
     return append_rows, updates, noop_count
 
@@ -944,7 +1025,13 @@ def main():
             )
 
             # 5) Registrar eventos en auditoria (detalle de inserts/updates).
-            append_ids = [row[0] for row in append_rows_payload if row and row[0]]
+            idx_prereserva = SHEET_COLUMNS_DB.index("Prereserva")
+            idx_origen = SHEET_COLUMNS_DB.index("Sucursal_origen")
+            append_ids = [
+                build_entity_key(row[idx_prereserva], row[idx_origen])
+                for row in append_rows_payload
+                if row and row[idx_prereserva] and row[idx_origen]
+            ]
             if append_ids:
                 audit.record_insert(append_ids)
 

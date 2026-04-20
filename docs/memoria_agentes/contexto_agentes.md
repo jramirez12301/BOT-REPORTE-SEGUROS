@@ -6,7 +6,7 @@
 - Estructura modular implementada con `core/` compartido y `automatizaciones/` por dominio.
 - La automatizacion soporta:
   - Testing incremental (MySQL + watermark).
-  - Produccion SQL Server (query multi-sucursal por fecha).
+  - Produccion SQL Server (query multi-sucursal por rango de fecha).
   - Auditoria transaccional en base de datos.
 
 ## Objetivo estrategico cumplido
@@ -32,6 +32,7 @@ Tablas:
 - Estados validos: `EXITO`, `ADVERTENCIA`, `ERROR`.
 - Tags de detalle aplicados con contrato acordado.
 - Zona horaria por defecto: `America/Argentina/Buenos_Aires`.
+- Clave de comparacion en ETL: `Prereserva + Sucursal_origen` para evitar colisiones entre bases.
 
 ## Estado de `AuditLogger`
 
@@ -59,7 +60,9 @@ Tablas:
 
 - Desarrollo: `venv` local.
 - Testing: MySQL incremental + watermark.
-- Produccion: SQL Server multi-sucursal por fecha (`YYYYMMDD`), con ejecucion cron esperada cada 4 horas.
+- Produccion: SQL Server multi-sucursal por rango de fecha (`YYYYMMDD`), con ejecucion cron esperada cada 4 horas.
+- Si se ejecuta sin flags en produccion: usa hoy -> hoy.
+- Si se ejecuta con `--start-date` y opcional `--end-date`: usa rango indicado.
 - Auditoria: MySQL por entorno (`AUDIT_DB_*`).
 
 ## Decisiones de lenguaje
@@ -70,3 +73,9 @@ Tablas:
 
 - Proyecto dado por finalizado a nivel funcional.
 - Ultima etapa pendiente: refactorizacion del codigo para mejorar legibilidad, separacion por modulos y mantenibilidad sin alterar comportamiento.
+
+## Estado final del alcance multi-sucursal
+
+- Query productiva incluye `Sucursal_origen` estatico por base (`FORD` / `HYUNDAI`).
+- La clasificacion en hoja se realiza por clave compuesta para evitar updates falsos por `Prereserva` repetida entre sucursales.
+- Preparado para ampliar a nuevas sucursales agregando bloques `UNION ALL` con su origen.
