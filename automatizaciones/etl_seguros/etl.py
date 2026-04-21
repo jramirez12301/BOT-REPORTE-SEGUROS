@@ -1,4 +1,5 @@
 import argparse
+import concurrent.futures
 import json
 import logging
 import os
@@ -13,7 +14,6 @@ from pathlib import Path
 import gspread
 import mysql.connector
 import pandas as pd
-import pyodbc
 from dotenv import load_dotenv
 from google.oauth2.service_account import Credentials
 from gspread.exceptions import APIError, SpreadsheetNotFound, WorksheetNotFound
@@ -26,7 +26,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from core.audit_logger import AuditLogger
-from core.db_utils import create_sqlserver_connection, get_audit_db_connection_factory
+from core.db_utils import create_sqlserver_connection_from_config, get_audit_db_connection_factory
 
 
 # Cargamos .env del proyecto para ambos modos de ejecucion.
@@ -35,7 +35,10 @@ load_dotenv(PROJECT_ROOT / ".env")
 # Constantes del modelo de hoja.
 WATERMARK_CANDIDATES = ["id_interno", "id"]
 
-# Columnas de negocio usadas para extraer/comparar datos (nombres de BD).
+# Columnas canonicas de la hoja (orden final de escritura/comparacion).
+# - Sucursal_origen: marca de negocio (FORD/HYUNDAI/JEEP/FIAT) derivada en ETL.
+# - Marca: viene de la vista y se mostrara como "Modelo" en encabezado visible.
+# - NroSucursal: se mantiene por compatibilidad historica de la hoja.
 SHEET_COLUMNS_DB = [
     "Prereserva",
     "Rubro",
@@ -48,6 +51,7 @@ SHEET_COLUMNS_DB = [
     "Localidad",
     "Provincia",
     "CodigoUnidad",
+    "Sucursal_origen",
     "Marca",
     "MarcaModelo",
     "Anio",
@@ -55,48 +59,53 @@ SHEET_COLUMNS_DB = [
     "Vin",
     "Patente",
     "Vendedor",
-    "Sucursal",
-    "Sucursal_origen",
+    "NroSucursal",
     "FechaPrereserva",
     "FechaVenta",
     "FechaEntrega",
 ]
 
 # Encabezados visibles en Google Sheets.
-# Aqui podemos mostrar acentos/etiquetas de negocio sin romper la lectura.
+# Aqui mapeamos etiqueta de negocio:
+# - Sucursal_origen -> Marca
+# - Marca -> Modelo
 SHEET_COLUMNS_SHEET = [
     "Año" if col == "Anio" else
-    "NroSucursal" if col == "Sucursal" else
-    "Sucursal" if col == "Sucursal_origen" else
+    "Marca" if col == "Sucursal_origen" else
+    "Modelo" if col == "Marca" else
     col
     for col in SHEET_COLUMNS_DB
 ]
 
 
-# Query productiva unica multi-sucursal.
-# Siempre filtra por rango de fechas en FechaPrereserva.
-# Incluye Sucursal_origen para resolver claves repetidas entre bases.
-PROD_EXTRACT_QUERY = """
-SELECT *
-FROM (
-    SELECT
-        'FORD' AS Sucursal_origen,
-        *
-    FROM ProyautMonti.dbo.Vista_Seguros
-    WHERE FechaPrereserva >= ?
-      AND FechaPrereserva <= ?
-
-    UNION ALL
-
-    SELECT
-        'HYUNDAI' AS Sucursal_origen,
-        *
-    FROM ProyautAuto.dbo.Vista_Seguros
-    WHERE FechaPrereserva >= ?
-      AND FechaPrereserva <= ?
-) AS src
-ORDER BY FechaPrereserva ASC, Prereserva ASC, Sucursal_origen ASC;
-"""
+# Mapeo de negocio por sucursal.
+# La infraestructura (hosts/credenciales) vive en .env y NO se ata a marcas.
+BRANCH_SOURCES = [
+    {
+        "sucursal_origen": "FORD",
+        "host_group": 1,
+        "database": "ProyautMonti",
+        "view": "dbo.Vista_Seguros",
+    },
+    {
+        "sucursal_origen": "HYUNDAI",
+        "host_group": 1,
+        "database": "ProyautAuto",
+        "view": "dbo.Vista_Seguros",
+    },
+    {
+        "sucursal_origen": "JEEP",
+        "host_group": 2,
+        "database": "ProyautLand",
+        "view": "dbo.Vista_Seguros",
+    },
+    {
+        "sucursal_origen": "FIAT",
+        "host_group": 2,
+        "database": "ProyautPine",
+        "view": "dbo.Vista_Seguros",
+    },
+]
 
 
 # Alias para tolerar diferencias de nombre entre origenes legacy y vista nueva.
@@ -105,6 +114,7 @@ COLUMN_ALIASES = {
     "CuitCliente": ["CuitCliente", "Cuitcliente"],
     "CodigoUnidad": ["CodigoUnidad", "Codigounidad"],
     "MarcaModelo": ["MarcaModelo", "Marcamodelo"],
+    "NroSucursal": ["NroSucursal", "Sucursal", "nrosucursal", "sucursal"],
     "FechaPrereserva": ["FechaPrereserva", "Fechaprereserva"],
     "FechaVenta": ["FechaVenta", "Fechaventa"],
     "FechaEntrega": ["FechaEntrega", "Fechaentrega"],
@@ -213,6 +223,91 @@ def get_env_optional(name: str, default: str = "") -> str:
     return value.strip()
 
 
+def get_env_int_optional(name: str, default: int) -> int:
+    value = get_env_optional(name, str(default))
+    try:
+        return int(value)
+    except ValueError as exc:
+        raise ValueError(f"Variable de entorno invalida (int): {name}={value}") from exc
+
+
+def build_sqlserver_host_config(host_group: int) -> dict:
+    """Construye configuracion SQL Server por grupo de host desde .env."""
+    suffix = str(host_group)
+    user = get_env_optional(f"SQLSERVER_USER_{suffix}", "") or get_env_required("SQLSERVER_USER")
+    password = get_env_optional(f"SQLSERVER_PASSWORD_{suffix}", "") or get_env_required(
+        "SQLSERVER_PASSWORD"
+    )
+    return {
+        "host_group": host_group,
+        "host": get_env_required(f"SQLSERVER_HOST_{suffix}"),
+        "port": get_env_int_optional(
+            f"SQLSERVER_PORT_{suffix}",
+            get_env_int_optional("SQLSERVER_PORT", 1433),
+        ),
+        "user": user,
+        "password": password,
+        "driver": get_env_optional("SQLSERVER_DRIVER", "ODBC Driver 17 for SQL Server"),
+        "timeout": get_env_int_optional("SQLSERVER_CONNECTION_TIMEOUT", 10),
+        "query_timeout": get_env_int_optional("SQLSERVER_QUERY_TIMEOUT", 60),
+        "encrypt": get_env_optional("SQLSERVER_ENCRYPT", "no"),
+        "trust_server_certificate": get_env_optional(
+            "SQLSERVER_TRUST_SERVER_CERTIFICATE",
+            "yes",
+        ),
+    }
+
+
+def build_sqlserver_host_map() -> dict[int, dict]:
+    """Define hosts productivos disponibles para extraccion por paralelo."""
+    host_groups = sorted({int(source["host_group"]) for source in BRANCH_SOURCES})
+    return {group: build_sqlserver_host_config(group) for group in host_groups}
+
+
+def select_columns_without_source() -> list[str]:
+    """Columnas explicitas de vista, excluyendo la columna derivada Sucursal_origen."""
+    return [col for col in SHEET_COLUMNS_DB if col != "Sucursal_origen"]
+
+
+def build_sqlserver_select_expression(column_name: str) -> str:
+    """Mapea columnas canonicas a expresiones SQL Server explicitas por vista."""
+    if column_name == "NroSucursal":
+        # La vista no define NroSucursal en todas las bases. Se conserva columna por compatibilidad.
+        return "CAST(NULL AS NVARCHAR(50)) AS [NroSucursal]"
+    return f"v.[{column_name}] AS [{column_name}]"
+
+
+def build_branch_query_sql(source: dict, select_columns: list[str]) -> str:
+    """Arma SELECT explicito por sucursal sin usar SELECT *."""
+    columns_sql = ",\n        ".join([build_sqlserver_select_expression(col) for col in select_columns])
+    database = source["database"]
+    view_name = source["view"]
+    sucursal_origen = source["sucursal_origen"]
+    return f"""
+SELECT
+    {columns_sql},
+    '{sucursal_origen}' AS Sucursal_origen
+FROM {database}.{view_name} AS v
+WHERE v.FechaPrereserva >= ?
+  AND v.FechaPrereserva <= ?
+""".strip()
+
+
+def build_host_union_query(sources: list[dict], select_columns: list[str]) -> str:
+    """Combina sucursales del mismo host en un unico UNION ALL local."""
+    if not sources:
+        raise ValueError("No hay sucursales configuradas para el host")
+    parts = [build_branch_query_sql(source, select_columns) for source in sources]
+    union_sql = "\nUNION ALL\n".join(parts)
+    return f"""
+SELECT
+    {", ".join(f"[{col}]" for col in SHEET_COLUMNS_DB)}
+FROM (
+{union_sql}
+) AS src
+""".strip()
+
+
 def resolve_credentials_file() -> Path:
     """Resuelve ruta de credenciales intentando carpeta local y raíz del proyecto."""
     env_value = get_env_optional("GOOGLE_CREDENTIALS_FILE", "")
@@ -275,6 +370,7 @@ def build_runtime_config(args: argparse.Namespace) -> dict:
     runtime_dir = CURRENT_DIR
     start_date = args.start_date
     end_date = args.end_date
+    sqlserver_host_map = None
     if not is_testing and not start_date:
         # En produccion sin --start-date, usamos fecha actual en formato YYYYMMDD.
         start_date = datetime.now().strftime("%Y%m%d")
@@ -282,10 +378,13 @@ def build_runtime_config(args: argparse.Namespace) -> dict:
         end_date = datetime.now().strftime("%Y%m%d")
     if not is_testing and start_date and end_date and start_date > end_date:
         raise ValueError("--start-date no puede ser mayor que --end-date")
+    if not is_testing:
+        sqlserver_host_map = build_sqlserver_host_map()
 
     return {
         "is_testing": is_testing,
         "mysql_testing_config": mysql_testing_config,
+        "sqlserver_host_map": sqlserver_host_map,
         "sheet_name": get_env_optional("SHEET_NAME", "Hoja 1"),
         "spreadsheet_id": spreadsheet_id,
         "credentials_file": resolve_credentials_file(),
@@ -328,25 +427,35 @@ def validate_sheet_header(header: list[str], expected_header: list[str]) -> None
     expected_canonical = [canonicalize_header_name(col) for col in expected_header]
 
     # Compatibilidad por posicion:
-    # - Columna 19 (Sucursal) puede venir como Sucursal o NroSucursal.
-    # - Columna 20 (Sucursal_origen) puede venir como Sucursal_origen o Sucursal.
-    idx_sucursal = SHEET_COLUMNS_DB.index("Sucursal")
+    # - Columna Sucursal_origen puede venir como Marca (nuevo) o Sucursal (legacy).
+    # - Columna Marca puede venir como Modelo (nuevo) o Marca (legacy).
+    # - Columna NroSucursal puede venir como NroSucursal o Sucursal (legacy).
     idx_origen = SHEET_COLUMNS_DB.index("Sucursal_origen")
+    idx_marca = SHEET_COLUMNS_DB.index("Marca")
+    idx_nro_sucursal = SHEET_COLUMNS_DB.index("NroSucursal")
 
     for idx, received in enumerate(received_canonical):
-        if idx == idx_sucursal:
-            if received not in {"sucursal", "nrosucursal"}:
+        if idx == idx_origen:
+            if received not in {"marca", "sucursal_origen", "sucursal"}:
                 raise ValueError(
                     "Encabezado invalido en Google Sheets. "
-                    f"Columna {idx + 1} esperada Sucursal/NroSucursal y recibida='{header[idx]}'"
+                    f"Columna {idx + 1} esperada Marca/Sucursal_origen y recibida='{header[idx]}'"
                 )
             continue
 
-        if idx == idx_origen:
-            if received not in {"sucursal_origen", "sucursal"}:
+        if idx == idx_marca:
+            if received not in {"modelo", "marca"}:
                 raise ValueError(
                     "Encabezado invalido en Google Sheets. "
-                    f"Columna {idx + 1} esperada Sucursal_origen/Sucursal y recibida='{header[idx]}'"
+                    f"Columna {idx + 1} esperada Modelo/Marca y recibida='{header[idx]}'"
+                )
+            continue
+
+        if idx == idx_nro_sucursal:
+            if received not in {"nrosucursal", "sucursal"}:
+                raise ValueError(
+                    "Encabezado invalido en Google Sheets. "
+                    f"Columna {idx + 1} esperada NroSucursal/Sucursal y recibida='{header[idx]}'"
                 )
             continue
 
@@ -422,7 +531,34 @@ def extract_from_mysql_testing(last_id: int, db_config: dict) -> tuple[pd.DataFr
         watermark_field = resolve_watermark_field(connection)
         logging.info("Columna incremental detectada: %s", watermark_field)
 
-        columns_query = ", ".join([watermark_field] + SHEET_COLUMNS_DB)
+        cursor = connection.cursor()
+        try:
+            cursor.execute("SHOW COLUMNS FROM Seguros")
+            available_cols = {row[0] for row in cursor.fetchall()}
+        finally:
+            cursor.close()
+
+        select_parts = [f"`{watermark_field}`"]
+        for target_col in SHEET_COLUMNS_DB:
+            candidates = COLUMN_ALIASES.get(target_col, [target_col])
+            source_col = next((candidate for candidate in candidates if candidate in available_cols), None)
+
+            if source_col:
+                if source_col == target_col:
+                    select_parts.append(f"`{target_col}`")
+                else:
+                    select_parts.append(f"`{source_col}` AS `{target_col}`")
+                continue
+
+            if target_col == "Sucursal_origen":
+                # En testing puede no existir columna de origen; usamos valor fijo para clave compuesta.
+                select_parts.append("'TEST' AS `Sucursal_origen`")
+                continue
+
+            # Mantiene shape estable del DataFrame en testing aunque falte alguna columna en origen.
+            select_parts.append(f"NULL AS `{target_col}`")
+
+        columns_query = ", ".join(select_parts)
         query = (
             f"SELECT {columns_query} FROM Seguros "
             f"WHERE {watermark_field} > %s ORDER BY {watermark_field} ASC"
@@ -438,40 +574,61 @@ def extract_from_mysql_testing(last_id: int, db_config: dict) -> tuple[pd.DataFr
             connection.close()
 
 
-def extract_from_sqlserver_production(start_date: str | None, end_date: str | None) -> pd.DataFrame:
-    """Extrae datos de produccion desde SQL Server multi-sucursal."""
-    query_start = start_date
-    query_end = end_date
+def group_sources_by_host() -> dict[int, list[dict]]:
+    """Agrupa el mapeo de negocio por host para consultas concurrentes."""
+    grouped: dict[int, list[dict]] = {}
+    for source in BRANCH_SOURCES:
+        host_group = int(source["host_group"])
+        grouped.setdefault(host_group, []).append(source)
+    return grouped
+
+
+def extract_host_group(
+    host_group: int,
+    host_config: dict,
+    sources: list[dict],
+    start_date: str,
+    end_date: str,
+) -> tuple[pd.DataFrame, list[dict], str]:
+    """Extrae datos de un host usando UNION ALL local para sus sucursales."""
+    select_columns = select_columns_without_source()
+    query = build_host_union_query(sources=sources, select_columns=select_columns)
+    params = []
+    for _ in sources:
+        params.extend([start_date, end_date])
+
+    source_summaries = []
+    source_names = ",".join(source["sucursal_origen"] for source in sources)
+    host_label = f"host_group={host_group} host={host_config['host']}"
+
     try:
-        connection = create_sqlserver_connection(env="PROD")
+        connection = create_sqlserver_connection_from_config(host_config)
         cursor = connection.cursor()
-        if not query_start or not query_end:
-            raise ValueError("El rango de fechas para produccion no puede estar vacio")
-
-        params = (query_start, query_end, query_start, query_end)
-        logging.info(
-            "Extraccion SQL Server produccion en rango FechaPrereserva [%s - %s]",
-            query_start,
-            query_end,
-        )
-        cursor.execute(PROD_EXTRACT_QUERY, params)
-
+        cursor.execute(query, tuple(params))
         rows = cursor.fetchall()
         columns = [col[0] for col in cursor.description]
-        df = pd.DataFrame.from_records(rows, columns=columns)
-        logging.info("Extraccion produccion exitosa. Registros obtenidos=%s", len(df))
-        return df
-    except pyodbc.Error as e:
-        logging.error(
-            "Error operativo de SQL Server en extraccion de produccion: %s | drivers=%s",
-            e,
-            pyodbc.drivers(),
-            exc_info=True,
+        host_df = pd.DataFrame.from_records(rows, columns=columns)
+
+        for source in sources:
+            sucursal = source["sucursal_origen"]
+            source_count = int((host_df["Sucursal_origen"] == sucursal).sum()) if not host_df.empty else 0
+            source_summaries.append(
+                {
+                    "host_group": host_group,
+                    "host": host_config["host"],
+                    "sucursal_origen": sucursal,
+                    "database": source["database"],
+                    "rows": source_count,
+                }
+            )
+
+        logging.info(
+            "Extraccion SQL Server %s OK. Sucursales=%s registros=%s",
+            host_label,
+            source_names,
+            len(host_df),
         )
-        raise
-    except Exception as e:
-        logging.error("Error general al extraer datos en produccion: %s", e, exc_info=True)
-        raise
+        return host_df, source_summaries, host_label
     finally:
         if "connection" in locals():
             try:
@@ -480,6 +637,70 @@ def extract_from_sqlserver_production(start_date: str | None, end_date: str | No
                 connection.close()
             except Exception:
                 pass
+
+
+def extract_from_sqlserver_production(
+    start_date: str | None,
+    end_date: str | None,
+    host_map: dict[int, dict],
+) -> tuple[pd.DataFrame, list[dict], list[str]]:
+    """Extrae datos productivos en paralelo por host y unifica resultados."""
+    if not start_date or not end_date:
+        raise ValueError("El rango de fechas para produccion no puede estar vacio")
+
+    grouped_sources = group_sources_by_host()
+    if not grouped_sources:
+        raise ValueError("No hay sucursales configuradas para extraccion productiva")
+
+    extracted_frames: list[pd.DataFrame] = []
+    source_summaries: list[dict] = []
+    source_errors: list[str] = []
+
+    max_workers = min(2, len(grouped_sources))
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_map = {}
+        for host_group, sources in grouped_sources.items():
+            host_config = host_map.get(host_group)
+            if not host_config:
+                raise ValueError(f"No hay configuracion de host para host_group={host_group}")
+
+            source_names = ",".join(source["sucursal_origen"] for source in sources)
+            future = executor.submit(
+                extract_host_group,
+                host_group,
+                host_config,
+                sources,
+                start_date,
+                end_date,
+            )
+            future_map[future] = (host_group, host_config["host"], source_names)
+
+        for future in concurrent.futures.as_completed(future_map):
+            host_group, host, source_names = future_map[future]
+            try:
+                host_df, host_summaries, _host_label = future.result()
+                extracted_frames.append(host_df)
+                source_summaries.extend(host_summaries)
+            except Exception as exc:
+                error_msg = (
+                    f"[SOURCE_ERROR] host_group={host_group} host={host} "
+                    f"sucursales={source_names} error={type(exc).__name__}: {exc}"
+                )
+                source_errors.append(error_msg)
+                logging.error(error_msg, exc_info=True)
+
+    if not extracted_frames:
+        if source_errors:
+            raise RuntimeError("Extraccion productiva fallida en todos los hosts")
+        return pd.DataFrame(), source_summaries, source_errors
+
+    final_df = pd.concat(extracted_frames, ignore_index=True)
+    # Orden obligatorio para mantener insercion cronologica tras concat concurrente.
+    final_df = final_df.sort_values(
+        by=["FechaPrereserva", "Prereserva", "Sucursal_origen"],
+        kind="mergesort",
+    ).reset_index(drop=True)
+    return final_df, source_summaries, source_errors
 
 
 def process_data(df: pd.DataFrame) -> pd.DataFrame:
@@ -576,9 +797,9 @@ def normalize_for_comparison(column_name: str, value) -> str:
         return normalize_number_text(text)
 
     # Algunas columnas llegan con ceros a la izquierda desde BD
-    # (ej: CodigoUnidad=00061256, Sucursal=01), pero Sheets suele mostrarlas sin cero.
+    # (ej: CodigoUnidad=00061256, NroSucursal=01), pero Sheets suele mostrarlas sin cero.
     # Para evitar updates innecesarios, comparamos estas columnas por valor numerico.
-    leading_zero_columns = {"CodigoUnidad", "Sucursal", "MarcaModelo"}
+    leading_zero_columns = {"CodigoUnidad", "NroSucursal", "MarcaModelo"}
     if column_name in leading_zero_columns and text.isdigit():
         return str(int(text))
 
@@ -990,25 +1211,54 @@ def main():
                     raise KeyError(f"No se encontro la columna de marca de agua '{watermark_field}'.")
                 new_last_id = int(df[watermark_field].max())
         else:
+            grouped_sources = group_sources_by_host()
+            for host_group, sources in sorted(grouped_sources.items()):
+                host_cfg = runtime["sqlserver_host_map"][host_group]
+                source_names = ",".join(source["sucursal_origen"] for source in sources)
+                source_dbs = ",".join(source["database"] for source in sources)
+                audit.record_detail_line(
+                    "[SOURCE_START] "
+                    f"host_group={host_group} host={host_cfg['host']} "
+                    f"sucursales={source_names} databases={source_dbs} "
+                    f"rango={runtime['start_date']}->{runtime['end_date']}"
+                )
             try:
-                df = extract_from_sqlserver_production(
+                df, source_summaries, source_errors = extract_from_sqlserver_production(
                     start_date=runtime["start_date"],
                     end_date=runtime["end_date"],
+                    host_map=runtime["sqlserver_host_map"],
                 )
-            except pyodbc.Error as sql_exc:
+            except Exception as sql_exc:
                 sql_msg = (
                     "Error operativo SQL Server en extraccion de produccion. "
                     "Verifica acceso, nombre de base y permisos de lectura."
                 )
                 audit.record_error(f"{sql_msg} Detalle: {sql_exc}")
                 raise
+
+            for source_summary in source_summaries:
+                audit.record_detail_line(
+                    "[SOURCE_SUMMARY] "
+                    f"host_group={source_summary['host_group']} "
+                    f"host={source_summary['host']} "
+                    f"sucursal={source_summary['sucursal_origen']} "
+                    f"database={source_summary['database']} "
+                    f"extraidos={source_summary['rows']}"
+                )
+
+            if source_errors:
+                warning_count += len(source_errors)
+                for source_error in source_errors:
+                    audit.record_detail_line(source_error)
+                    audit.record_warning(source_error)
+
             if runtime["start_date"] and runtime["end_date"]:
                 audit.record_info(
                     f"Rango de carga aplicado: {runtime['start_date']} -> {runtime['end_date']}"
                 )
 
         audit.set_metric("extraidos", len(df))
-        print(f"[INFO] Registros extraidos desde MySQL: {len(df)}")
+        print(f"[INFO] Registros extraidos desde origen: {len(df)}")
 
         if not df.empty:
             # 3) Transformar y deduplicar.
