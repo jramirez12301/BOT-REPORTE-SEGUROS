@@ -170,6 +170,44 @@ def create_sqlserver_connection(
     return pyodbc.connect(conn_str, timeout=int(config["timeout"]))
 
 
+def create_sqlserver_connection_from_config(config: dict[str, Any]):
+    """Create SQL Server connection from explicit runtime config."""
+    host = str(config.get("host", "")).strip()
+    user = str(config.get("user", "")).strip()
+    password = str(config.get("password", "")).strip()
+    if not host or not user or not password:
+        raise ValueError("SQL Server config invalida: host/user/password son obligatorios")
+
+    port = int(config.get("port", 1433))
+    database = str(config.get("database", "master")).strip() or "master"
+    timeout = int(config.get("timeout", 10))
+    query_timeout = int(config.get("query_timeout", 0) or 0)
+    encrypt = str(config.get("encrypt", "no")).strip() or "no"
+    trust_server_certificate = str(config.get("trust_server_certificate", "yes")).strip() or "yes"
+
+    configured_driver = str(config.get("driver", "")).strip() or None
+    driver = _resolve_sqlserver_driver(configured_driver)
+
+    conn_str = (
+        f"DRIVER={{{driver}}};"
+        f"SERVER={host},{port};"
+        f"DATABASE={database};"
+        f"UID={user};"
+        f"PWD={password};"
+    )
+
+    if str(driver).startswith("ODBC Driver"):
+        conn_str += (
+            f"Encrypt={encrypt};"
+            f"TrustServerCertificate={trust_server_certificate};"
+        )
+
+    conn = pyodbc.connect(conn_str, timeout=timeout)
+    if query_timeout > 0:
+        conn.timeout = query_timeout
+    return conn
+
+
 def get_sqlserver_connection_factory(
     env: str | None = None,
     prefix: str = "SQLSERVER",

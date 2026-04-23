@@ -131,6 +131,9 @@ Con el fin de mantener `detalle` idénticos entre todas las automatizaciones, el
 
 - `[INICIO]` → inicio de la ejecución
 - `[RESUMEN]` → métricas generales del proceso
+- `[SOURCE_START]` → inicio de extracción por host/sucursal
+- `[SOURCE_SUMMARY]` → métricas por sucursal dentro del host
+- `[SOURCE_ERROR]` → error operativo parcial por host/sucursal
 - `[INSERT]` → registros insertados
 - `[UPDATE]` → registros actualizados
 - `[DELETE]` → registros eliminados, si aplica
@@ -141,6 +144,8 @@ Con el fin de mantener `detalle` idénticos entre todas las automatizaciones, el
 
 - Utilizar mismo formato entre procesos
 - Redactar de forma clara y breve la acción tomada por el automatizador
+- Mantener `[RESUMEN]` global para compatibilidad de consultas históricas
+- En extracciones multi-host registrar siempre bloques `[SOURCE_*]` por trazabilidad operativa
 
 **Ejemplo**
 
@@ -169,6 +174,25 @@ Con el fin de mantener `detalle` idénticos entre todas las automatizaciones, el
 [ERROR] VEH_1110: Timeout al intentar conexión con servicio de publicación
 
 [FIN] ERROR
+```
+
+## Extensión para extracción multi-host
+
+Cuando una automatización consulta múltiples servidores SQL Server en paralelo, el detalle debe incluir bloques por host/sucursal.
+
+**Ejemplo recomendado**
+
+```bash
+[INICIO] 2026-04-21 10:00:00
+[RESUMEN] extraidos=150, deduplicados=145, inserts=20, updates=8, errors=1
+[SOURCE_START] host_group=1 host=192.168.1.77 sucursales=FORD,HYUNDAI databases=ProyautMonti,ProyautAuto rango=20260421->20260421
+[SOURCE_SUMMARY] host_group=1 host=192.168.1.77 sucursal=FORD database=ProyautMonti extraidos=54
+[SOURCE_SUMMARY] host_group=1 host=192.168.1.77 sucursal=HYUNDAI database=ProyautAuto extraidos=41
+[SOURCE_START] host_group=2 host=192.168.11.12 sucursales=JEEP,FIAT databases=ProyautLand,ProyautPine rango=20260421->20260421
+[SOURCE_SUMMARY] host_group=2 host=192.168.11.12 sucursal=JEEP database=ProyautLand extraidos=29
+[SOURCE_ERROR] host_group=2 host=192.168.11.12 sucursales=JEEP,FIAT error=OperationalError: timeout
+[WARNING] [SOURCE_ERROR] host_group=2 host=192.168.11.12 sucursales=JEEP,FIAT error=OperationalError: timeout
+[FIN] ADVERTENCIA
 ```
 
 # Manejo de errores

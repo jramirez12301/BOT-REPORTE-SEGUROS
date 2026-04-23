@@ -39,6 +39,7 @@ class AuditLogger:
     _delete_ids: list[str] = field(default_factory=list, init=False)
     _warning_lines: list[str] = field(default_factory=list, init=False)
     _error_lines: list[str] = field(default_factory=list, init=False)
+    _custom_detail_lines: list[str] = field(default_factory=list, init=False)
 
     _started: bool = field(default=False, init=False)
     _persisted: bool = field(default=False, init=False)
@@ -83,6 +84,15 @@ class AuditLogger:
 
     def record_error(self, message: str) -> None:
         self._error_lines.append(self._safe(message))
+
+    def record_detail_line(self, line: str) -> None:
+        safe_line = self._safe(line)
+        if safe_line:
+            self._custom_detail_lines.append(safe_line)
+
+    def record_detail_lines(self, lines: list[str]) -> None:
+        for line in lines:
+            self.record_detail_line(line)
 
     def mark_success(self) -> None:
         self.estado = "EXITO"
@@ -235,6 +245,9 @@ class AuditLogger:
 
         if self._error_lines:
             lines.append(f"[ERROR] {self._join_compact(self._error_lines)}")
+
+        if self._custom_detail_lines:
+            lines.extend(self._custom_detail_lines)
 
         lines.append(f"[FIN] {final_state} | {self._fmt_dt(end_dt)}")
         return lines
