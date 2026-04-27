@@ -1,7 +1,15 @@
 # Entorno Virtual
-venv*/
-.venv*/
+./venv_*/
+/venv*/
+venv/
+.venv/
+venv_linux/
+venv_win/
+**/venv/
+**/.venv/
+**/venv_*/
 env/
+**/env/
 bin/
 include/
 lib/
