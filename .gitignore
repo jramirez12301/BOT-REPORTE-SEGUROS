@@ -1,6 +1,6 @@
 # Entorno Virtual
-venv/
-.venv/
+venv*/
+.venv*/
 env/
 bin/
 include/
