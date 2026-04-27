@@ -1,0 +1,19 @@
+services:
+  etl_seguros_bot:
+    build:
+      context: ../..
+      dockerfile: deploy/etl_seguros/Dockerfile
+    image: etl-seguros:1.0.0
+    env_file:
+      - ../../.env
+    environment:
+      # Reforzamos por donde leer el json
+      GOOGLE_CREDENTIALS_FILE: /app/credentials.json
+      # Runtime persistente para log + watermark.
+      ETL_RUNTIME_DIR: /app/runtime
+    volumes:
+      # Credenciales en solo lectura
+      - ../../credentials.json:/app/credentials.json:ro
+      # Persistimos logs y watermark fuera del contenedor.
+      - ../../runtime/etl_seguros:/app/runtime
+    # Sin command: compose run permite pasar flags al ENTRYPOINT.

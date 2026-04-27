@@ -86,6 +86,38 @@ Asegúrate de tener en tu carpeta: `etl.py`, `requirements.txt` y `.env.example`
     ```bash
     pip install -r requirements.txt
     ```
+
+### Dependencias Linux para SQL Server (pyodbc + ODBC)
+
+Si ejecutas el ETL en Linux para extraccion productiva desde SQL Server, ademas de `pip install -r requirements.txt` necesitas instalar dependencias del sistema operativo.
+
+#### Ubuntu/Debian (recomendado)
+
+Si ejecutas como `root`, usa los comandos sin `sudo`.
+
+```bash
+apt-get update
+apt-get install -y curl ca-certificates gnupg apt-transport-https unixodbc unixodbc-dev
+curl -sSL https://packages.microsoft.com/config/ubuntu/24.04/packages-microsoft-prod.deb -o /tmp/packages-microsoft-prod.deb
+dpkg -i /tmp/packages-microsoft-prod.deb
+rm -f /tmp/packages-microsoft-prod.deb
+apt-get update
+ACCEPT_EULA=Y apt-get install -y msodbcsql18
+```
+
+> Si usas otra version de Ubuntu, reemplaza `24.04` en la URL por tu version.
+
+#### Verificacion rapida
+
+```bash
+python -c "import pyodbc; print(pyodbc.drivers())"
+```
+
+Debe aparecer al menos uno de estos drivers:
+- `ODBC Driver 18 for SQL Server`
+- `ODBC Driver 17 for SQL Server`
+
+Si la salida es `[]`, el ETL en modo produccion no podra conectarse a SQL Server.
     
 4. **Configurar variables de entorno**:
 Copia el archivo de ejemplo y edítalo con tus credenciales reales:

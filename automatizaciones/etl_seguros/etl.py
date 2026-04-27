@@ -201,12 +201,39 @@ def parse_start_date(value: str) -> str:
 def setup_logging(log_file: Path) -> None:
     """Configura logging local para diagnóstico operativo."""
     log_file.parent.mkdir(parents=True, exist_ok=True)
+    rotate_log_file_by_runs(log_file, keep_runs=3)
     logging.basicConfig(
         filename=str(log_file),
         level=logging.INFO,
         encoding="utf-8",
         format="%(asctime)s - %(levelname)s - %(message)s",
     )
+
+
+def rotate_log_file_by_runs(log_file: Path, keep_runs: int = 3) -> None:
+    """Mantiene hasta N ejecuciones de log (actual + historicos)."""
+    if keep_runs < 1:
+        return
+
+    try:
+        oldest_backup_index = keep_runs - 1
+        oldest_backup = log_file.with_name(f"{log_file.name}.{oldest_backup_index}")
+        if oldest_backup.exists():
+            oldest_backup.unlink()
+
+        for index in range(oldest_backup_index - 1, 0, -1):
+            current_backup = log_file.with_name(f"{log_file.name}.{index}")
+            next_backup = log_file.with_name(f"{log_file.name}.{index + 1}")
+            if current_backup.exists():
+                current_backup.replace(next_backup)
+
+        if log_file.exists():
+            log_file.replace(log_file.with_name(f"{log_file.name}.1"))
+    except OSError:
+        # Si el log esta montado como archivo bind, rename puede fallar.
+        # Fallback seguro: truncar para evitar crecimiento indefinido.
+        if log_file.exists():
+            log_file.write_text("", encoding="utf-8")
 
 
 def get_env_required(name: str) -> str:
@@ -367,9 +394,11 @@ def build_runtime_config(args: argparse.Namespace) -> dict:
             "use_unicode": True,
         }
 
-    runtime_dir = CURRENT_DIR
+    runtime_dir = Path(get_env_optional("ETL_RUNTIME_DIR", str(CURRENT_DIR))).expanduser().resolve()
+    runtime_dir.mkdir(parents=True, exist_ok=True)
     start_date = args.start_date
     end_date = args.end_date
+    date_range_origin = "PARAMETROS" if bool(args.start_date) else "DEFAULT_HOY"
     sqlserver_host_map = None
     if not is_testing and not start_date:
         # En produccion sin --start-date, usamos fecha actual en formato YYYYMMDD.
@@ -395,6 +424,7 @@ def build_runtime_config(args: argparse.Namespace) -> dict:
         "dry_run": bool(args.dry_run),
         "start_date": start_date,
         "end_date": end_date,
+        "date_range_origin": date_range_origin,
         "audit_env": "TEST" if is_testing else "PROD",
     }
 
@@ -691,7 +721,18 @@ def extract_from_sqlserver_production(
 
     if not extracted_frames:
         if source_errors:
-            raise RuntimeError("Extraccion productiva fallida en todos los hosts")
+            details = summarize_source_errors(source_errors)
+            if is_missing_odbc_driver_error(source_errors):
+                raise RuntimeError(
+                    "Extraccion productiva fallida en todos los hosts. "
+                    "Causa probable: no hay driver ODBC de SQL Server instalado en Linux "
+                    "(pyodbc.drivers() vacio). "
+                    f"Detalle: {details}"
+                )
+            raise RuntimeError(
+                "Extraccion productiva fallida en todos los hosts. "
+                f"Detalle: {details}"
+            )
         return pd.DataFrame(), source_summaries, source_errors
 
     final_df = pd.concat(extracted_frames, ignore_index=True)
@@ -701,6 +742,27 @@ def extract_from_sqlserver_production(
         kind="mergesort",
     ).reset_index(drop=True)
     return final_df, source_summaries, source_errors
+
+
+def summarize_source_errors(source_errors: list[str], max_items: int = 2) -> str:
+    """Resume errores por host para mensajes operativos cortos."""
+    if not source_errors:
+        return ""
+    compact = source_errors[:max_items]
+    remaining = len(source_errors) - len(compact)
+    suffix = "" if remaining <= 0 else f" ... (+{remaining} mas)"
+    return " | ".join(compact) + suffix
+
+
+def is_missing_odbc_driver_error(source_errors: list[str]) -> bool:
+    """Detecta falla por ausencia de driver ODBC SQL Server."""
+    if not source_errors:
+        return False
+    text = " ".join(source_errors).lower()
+    return (
+        "no se encontro un driver odbc compatible para sql server" in text
+        or "drivers instalados: []" in text
+    )
 
 
 def process_data(df: pd.DataFrame) -> pd.DataFrame:
@@ -1165,6 +1227,22 @@ def main():
         audit.record_info(f"Modo de ejecucion={'TESTING' if runtime['is_testing'] else 'PRODUCCION'}")
         if runtime["dry_run"]:
             audit.record_info("Modo simulacro activo: no se escribira en Google Sheets")
+        if not runtime["is_testing"]:
+            date_range_info = (
+                f"FechaPrereserva desde={runtime['start_date']} "
+                f"hasta={runtime['end_date']} "
+                f"origen={runtime['date_range_origin']}"
+            )
+            logging.info("Rango productivo aplicado: %s", date_range_info)
+            print(f"[INFO] Rango productivo aplicado: {date_range_info}")
+            audit.record_info(f"Rango productivo aplicado: {date_range_info}")
+            audit.record_detail_line(
+                "[RANGO_CARGA] "
+                "campo=FechaPrereserva "
+                f"desde={runtime['start_date']} "
+                f"hasta={runtime['end_date']} "
+                f"origen={runtime['date_range_origin']}"
+            )
 
         # 1) Configurar conexión a Google Sheets.
         scopes = [
@@ -1229,10 +1307,22 @@ def main():
                     host_map=runtime["sqlserver_host_map"],
                 )
             except Exception as sql_exc:
-                sql_msg = (
-                    "Error operativo SQL Server en extraccion de produccion. "
-                    "Verifica acceso, nombre de base y permisos de lectura."
-                )
+                sql_exc_text = str(sql_exc).lower()
+                if (
+                    "driver odbc" in sql_exc_text
+                    or "drivers instalados: []" in sql_exc_text
+                    or "pyodbc.drivers() vacio" in sql_exc_text
+                ):
+                    sql_msg = (
+                        "Error operativo SQL Server en extraccion de produccion. "
+                        "No se detecta driver ODBC en el entorno Linux. "
+                        "Instala msodbcsql18 y unixODBC en el servidor/contenedor."
+                    )
+                else:
+                    sql_msg = (
+                        "Error operativo SQL Server en extraccion de produccion. "
+                        "Verifica acceso, nombre de base y permisos de lectura."
+                    )
                 audit.record_error(f"{sql_msg} Detalle: {sql_exc}")
                 raise
 
@@ -1251,11 +1341,6 @@ def main():
                 for source_error in source_errors:
                     audit.record_detail_line(source_error)
                     audit.record_warning(source_error)
-
-            if runtime["start_date"] and runtime["end_date"]:
-                audit.record_info(
-                    f"Rango de carga aplicado: {runtime['start_date']} -> {runtime['end_date']}"
-                )
 
         audit.set_metric("extraidos", len(df))
         print(f"[INFO] Registros extraidos desde origen: {len(df)}")

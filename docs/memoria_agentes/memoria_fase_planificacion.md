@@ -254,6 +254,84 @@ Implementado:
 - `read_sheet_snapshot` y `classify_records` migraron a indice por clave compuesta.
 - Auditoria de inserts/updates ahora reporta `entity_id` compuesto para trazabilidad correcta.
 
+### Fase 6 - Contenerizacion del ETL (Docker)
+
+- Crear una imagen Docker para `automatizaciones/etl_seguros/etl.py` con dependencias aisladas.
+- Estandarizar ejecucion en Linux para evitar diferencias entre ejecucion manual y cron.
+- Mantener conectividad a SQL Server externo + Google Sheets + DB de auditoria sin instalar dependencias globales en el host.
+
+Estado: PLANIFICADA.
+
+Objetivo tecnico:
+- Ejecutar ETL en contenedor reproducible, portable y con dependencias consistentes.
+- Reducir incidentes por entorno (drivers ODBC ausentes, rutas de credenciales, diferencias de interpreter/path).
+
+Alcance acordado:
+- Crear `Dockerfile` para ETL con Python y ODBC.
+- Definir `docker-compose.yml` para ejecucion operativa con `.env` y volumenes.
+- Mantener `credentials.json` fuera de la imagen (montado por volumen, solo lectura).
+- Definir forma de programacion recomendada:
+  - cron del host invocando `docker run` o `docker compose run`,
+  - sin cron interno dentro del contenedor para evitar complejidad operativa.
+
+Dependencias de sistema que debe instalar la imagen:
+- Base Python (`python:3.x-slim` o equivalente estable).
+- Paquetes Linux requeridos para `pyodbc`:
+  - `unixodbc`
+  - `unixodbc-dev`
+  - `curl`
+  - `gnupg`
+  - `ca-certificates`
+  - `apt-transport-https`
+- Repositorio Microsoft para Ubuntu/Debian compatible con la imagen.
+- Driver SQL Server:
+  - `msodbcsql18`
+
+Dependencias Python dentro de la imagen:
+- Instalar todo `requirements.txt` del proyecto.
+- Verificar presencia de `pyodbc` y driver detectable con `pyodbc.drivers()`.
+
+Instalaciones/configuracion necesarias al correr la imagen (runtime):
+- Variables de entorno (`.env`):
+  - SQL Server: `SQLSERVER_HOST_1`, `SQLSERVER_HOST_2`, `SQLSERVER_PORT_*`, `SQLSERVER_USER`, `SQLSERVER_PASSWORD`, `SQLSERVER_DRIVER`, `SQLSERVER_ENCRYPT`, `SQLSERVER_TRUST_SERVER_CERTIFICATE`.
+  - Google Sheets: `SPREADSHEET_ID`, `SHEET_NAME`, `GOOGLE_CREDENTIALS_FILE`.
+  - Auditoria: `AUDIT_DB_HOST`, `AUDIT_DB_PORT`, `AUDIT_DB_USER`, `AUDIT_DB_PASSWORD`, `AUDIT_DB_NAME`.
+- Volumenes:
+  - Montar `credentials.json` en ruta fija del contenedor (read-only).
+  - Montar salida de logs (`etl.log`) para persistencia fuera del contenedor.
+  - Montar `watermark.json` solo para modo testing, no requerido en produccion.
+- Red:
+  - Salida a SQL Server remoto (`tcp/1433` o puerto configurado por host).
+  - Salida HTTPS a APIs de Google.
+
+Lo que NO se instalara dentro del contenedor:
+- SQL Server local (el ETL consume servidores externos existentes).
+- Cron del sistema dentro del contenedor (el scheduling queda en host/orquestador).
+
+Riesgos y mitigacion:
+- Diferencias TLS/SSL entre hosts SQL Server:
+  - Mantener configuracion por entorno y evaluar soporte por host.
+  - En etapa siguiente, habilitar parametros por host (`SQLSERVER_DRIVER_1`, `SQLSERVER_ENCRYPT_1`, etc.) si se confirma necesidad.
+- Secretos expuestos en imagen:
+  - No copiar `credentials.json` ni `.env` al build context final.
+  - Inyectar secretos por volumen/variables en runtime.
+- Drift de ejecucion cron vs manual:
+  - Usar comando docker unico y deterministico.
+  - Registrar en auditoria los mismos tags y metrica que en ejecucion local.
+
+Criterios de aceptacion de la fase:
+- El ETL corre en contenedor en Linux con resultado equivalente a ejecucion manual.
+- `python -c "import pyodbc; print(pyodbc.drivers())"` devuelve `ODBC Driver 18 for SQL Server` (o 17) dentro del contenedor.
+- Se puede ejecutar en modo produccion y testing sin cambios de codigo.
+- Auditoria persiste correctamente (`EJECUCION` + `LOG_PROCESOS`) y `etl.log` queda disponible en volumen montado.
+
+Checklist operativo previo a cierre de fase:
+- Build de imagen OK.
+- Prueba de conectividad SQL Server por cada host group.
+- Prueba de escritura controlada a Google Sheets (`--dry-run` y corrida real).
+- Prueba programada por cron del host invocando contenedor.
+- Documentacion de runbook de despliegue y rollback.
+
 ### Cierre del proyecto
 
 Estado general: CERRADO A NIVEL FUNCIONAL.
