@@ -265,6 +265,26 @@ def build_sqlserver_host_config(host_group: int) -> dict:
     password = get_env_optional(f"SQLSERVER_PASSWORD_{suffix}", "") or get_env_required(
         "SQLSERVER_PASSWORD"
     )
+
+    driver = get_env_optional(f"SQLSERVER_DRIVER_{suffix}", "") or get_env_optional(
+        "SQLSERVER_DRIVER", "ODBC Driver 17 for SQL Server"
+    )
+    connection_timeout = get_env_int_optional(
+        f"SQLSERVER_CONNECTION_TIMEOUT_{suffix}",
+        get_env_int_optional("SQLSERVER_CONNECTION_TIMEOUT", 10),
+    )
+    query_timeout = get_env_int_optional(
+        f"SQLSERVER_QUERY_TIMEOUT_{suffix}",
+        get_env_int_optional("SQLSERVER_QUERY_TIMEOUT", 60),
+    )
+    encrypt = get_env_optional(f"SQLSERVER_ENCRYPT_{suffix}", "") or get_env_optional(
+        "SQLSERVER_ENCRYPT", "no"
+    )
+    trust_server_certificate = get_env_optional(
+        f"SQLSERVER_TRUST_SERVER_CERTIFICATE_{suffix}",
+        "",
+    ) or get_env_optional("SQLSERVER_TRUST_SERVER_CERTIFICATE", "yes")
+
     return {
         "host_group": host_group,
         "host": get_env_required(f"SQLSERVER_HOST_{suffix}"),
@@ -274,14 +294,11 @@ def build_sqlserver_host_config(host_group: int) -> dict:
         ),
         "user": user,
         "password": password,
-        "driver": get_env_optional("SQLSERVER_DRIVER", "ODBC Driver 17 for SQL Server"),
-        "timeout": get_env_int_optional("SQLSERVER_CONNECTION_TIMEOUT", 10),
-        "query_timeout": get_env_int_optional("SQLSERVER_QUERY_TIMEOUT", 60),
-        "encrypt": get_env_optional("SQLSERVER_ENCRYPT", "no"),
-        "trust_server_certificate": get_env_optional(
-            "SQLSERVER_TRUST_SERVER_CERTIFICATE",
-            "yes",
-        ),
+        "driver": driver,
+        "timeout": connection_timeout,
+        "query_timeout": query_timeout,
+        "encrypt": encrypt,
+        "trust_server_certificate": trust_server_certificate,
     }
 
 

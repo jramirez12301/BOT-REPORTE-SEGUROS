@@ -135,6 +135,38 @@ Coloca tu archivo `credentials.json` en la raíz del proyecto.
 
 El programa se puede ejecutar manualmente o configurarse para que funcione de forma automática.
 
+### ✔ Ejecucion con Docker (recomendada para servidor Linux)
+
+Desde la raiz del proyecto `Entorno/`:
+
+```bash
+docker compose -f deploy/etl_seguros/docker-compose.yml build
+```
+
+Mostrar ayuda del ETL dentro del contenedor:
+
+```bash
+docker compose -f deploy/etl_seguros/docker-compose.yml run --rm etl_seguros_bot --help
+```
+
+Ejecutar ETL normal (sin parametros, usa fecha actual en produccion):
+
+```bash
+docker compose -f deploy/etl_seguros/docker-compose.yml run --rm etl_seguros_bot
+```
+
+Ejecutar ETL por rango de `FechaPrereserva`:
+
+```bash
+docker compose -f deploy/etl_seguros/docker-compose.yml run --rm etl_seguros_bot --start-date YYYYMMDD --end-date YYYYMMDD
+```
+
+Ejemplo real:
+
+```bash
+docker compose -f deploy/etl_seguros/docker-compose.yml run --rm etl_seguros_bot --start-date 20260101 --end-date 20260201
+```
+
 ### **✔ Ejecución manual**
 
 ```bash

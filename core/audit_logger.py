@@ -152,7 +152,7 @@ class AuditLogger:
 
                 cursor.execute(
                     (
-                        "INSERT INTO EJECUCION "
+                        "INSERT INTO ejecucion "
                         "(id_proceso, fecha_inicio, fecha_fin, resumen, estado) "
                         "VALUES (%s, %s, %s, %s, %s)"
                     ),
@@ -169,7 +169,7 @@ class AuditLogger:
 
                 for chunk in detail_chunks:
                     cursor.execute(
-                        "INSERT INTO LOG_PROCESOS (id_ejecucion, detalle) VALUES (%s, %s)",
+                        "INSERT INTO log_procesos (id_ejecucion, detalle) VALUES (%s, %s)",
                         (id_ejecucion, chunk),
                     )
 
@@ -196,7 +196,7 @@ class AuditLogger:
             raise ValueError("Se requiere id_proceso o process_name para persistir la auditoria")
 
         cursor.execute(
-            "SELECT id_proceso FROM PROCESOS WHERE nombre_proceso = %s LIMIT 1",
+            "SELECT id_proceso FROM procesos WHERE nombre_proceso = %s LIMIT 1",
             (self.process_name,),
         )
         row = cursor.fetchone()
@@ -210,7 +210,7 @@ class AuditLogger:
             )
 
         cursor.execute(
-            "INSERT INTO PROCESOS (nombre_proceso, descripcion_proceso) VALUES (%s, %s)",
+            "INSERT INTO procesos (nombre_proceso, descripcion_proceso) VALUES (%s, %s)",
             (self.process_name, self.process_description or ""),
         )
         return int(cursor.lastrowid)

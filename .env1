@@ -1,9 +1,10 @@
 # =========================================================
-# 1. ORIGEN DE DATOS - PRODUCCION (SQL Server por infraestructura)
-# Definicion por host, no por marca/sucursal.
+# 1. ORIGEN DE DATOS - PRODUCCION (SQL Server)
+# Usuario con rol db_datareader (Solo Lectura)
 # =========================================================
-
 # Host Group 1 (FORD + HYUNDAI)
+SQLSERVER_DRIVER_1=ODBC Driver 17 for SQL Server
+SQLSERVER_ENCRYPT_1=no
 SQLSERVER_HOST_1=192.168.1.77
 SQLSERVER_PORT_1=1433
 
@@ -12,8 +13,10 @@ SQLSERVER_HOST_2=192.168.11.12
 SQLSERVER_PORT_2=1433
 
 # Credenciales globales (fallback para todos los hosts)
-SQLSERVER_USER=usuario_sqlserver_lectura
-SQLSERVER_PASSWORD=contrasena_sqlserver
+SQLSERVER_USER_1=sa
+SQLSERVER_PASSWORD_1=*formula1
+SQLSERVER_USER_2=sa
+SQLSERVER_PASSWORD_2=M4r10lud3z3*
 
 # Credenciales opcionales por host (si un host usa usuario distinto)
 # SQLSERVER_USER_1=usuario_host_1
@@ -21,21 +24,6 @@ SQLSERVER_PASSWORD=contrasena_sqlserver
 # SQLSERVER_USER_2=usuario_host_2
 # SQLSERVER_PASSWORD_2=contrasena_host_2
 
-# Parametros globales SQL Server
-SQLSERVER_DRIVER=ODBC Driver 17 for SQL Server
-SQLSERVER_CONNECTION_TIMEOUT=10
-SQLSERVER_QUERY_TIMEOUT=60
-SQLSERVER_PORT=1433
-SQLSERVER_ENCRYPT=no
-SQLSERVER_TRUST_SERVER_CERTIFICATE=yes
-
-# Overrides opcionales por host_group (ejemplo para legacy TLS en host 1)
-# SQLSERVER_DRIVER_1=ODBC Driver 17 for SQL Server
-# SQLSERVER_ENCRYPT_1=no
-# SQLSERVER_TRUST_SERVER_CERTIFICATE_1=yes
-
-# Si no tienes ODBC Driver 17/18 instalado, el sistema intentara fallback automatico
-# a otros drivers disponibles como "SQL Server".
 
 # =========================================================
 # 2. ORIGEN DE DATOS - TESTING (MySQL Simulator)
@@ -43,38 +31,37 @@ SQLSERVER_TRUST_SERVER_CERTIFICATE=yes
 # =========================================================
 DB_HOST_TEST=localhost
 DB_PORT_TEST=3306
-DB_USER_TEST=usuario_mysql_test
-DB_PASSWORD_TEST=contrasena_mysql_test
-DB_NAME_TEST=nombre_base_datos_test
+DB_USER_TEST=admin
+DB_PASSWORD_TEST=admin
+DB_NAME_TEST=testing
 
 # =========================================================
 # 3. DESTINO - GOOGLE SHEETS
 # =========================================================
 # Produccion
-SPREADSHEET_ID=id_de_tu_documento_google_sheets_prod
+SPREADSHEET_ID=1i2EXhBQbxeyUuNKWxfnG7LNyx5Ha049kD95zS0hBG-s
 SHEET_NAME=Hoja 1
+# PRODU
+# 1EWhWiVVN0Sgr_ejoX3-Q_EZgG4jXjxp1rGZBigZugpI
 
 # Testing (Obligatorio en --testing)
-SPREADSHEET_ID_TEST=id_de_tu_documento_google_sheets_test
+SPREADSHEET_ID_TEST=1i2EXhBQbxeyUuNKWxfnG7LNyx5Ha049kD95zS0hBG-s
 
-# Autenticacion API (Docker recomienda /app/credentials.json via volumen readonly)
+# Autenticacion API
 GOOGLE_CREDENTIALS_FILE=credentials.json
-
-# Runtime opcional para Docker (logs + watermark persistentes fuera del contenedor)
-# ETL_RUNTIME_DIR=/app/runtime
 
 # =========================================================
 # 4. BASE DE AUDITORIA - PRODUCCION (MySQL)
 # Usada por core/db_utils.py en ejecucion normal
 # =========================================================
-AUDIT_DB_HOST=localhost
+AUDIT_DB_HOST=192.168.8.134
 AUDIT_DB_PORT=3306
-AUDIT_DB_USER=usuario_auditoria_prod
-AUDIT_DB_PASSWORD=contrasena_auditoria_prod
-AUDIT_DB_NAME=auditoria_prod
+AUDIT_DB_USER=Testing
+AUDIT_DB_PASSWORD=Monti1234!
+AUDIT_DB_NAME=auditoria-automatizaciones
 AUDIT_DB_CONNECTION_TIMEOUT=10
 AUDIT_DB_CHARSET=utf8mb4
-AUDIT_DB_COLLATION=utf8mb4_unicode_ci
+AUDIT_DB_COLLATION=utf8mb4_0900_ai_ci
 
 # =========================================================
 # 5. BASE DE AUDITORIA - TESTING (MySQL)
@@ -82,9 +69,9 @@ AUDIT_DB_COLLATION=utf8mb4_unicode_ci
 # =========================================================
 AUDIT_DB_HOST_TEST=localhost
 AUDIT_DB_PORT_TEST=3306
-AUDIT_DB_USER_TEST=usuario_auditoria_test
-AUDIT_DB_PASSWORD_TEST=contrasena_auditoria_test
-AUDIT_DB_NAME_TEST=auditoria_test
+AUDIT_DB_USER_TEST=admin
+AUDIT_DB_PASSWORD_TEST=admin
+AUDIT_DB_NAME_TEST=testing
 AUDIT_DB_CONNECTION_TIMEOUT_TEST=10
 AUDIT_DB_CHARSET_TEST=utf8mb4
 AUDIT_DB_COLLATION_TEST=utf8mb4_unicode_ci
