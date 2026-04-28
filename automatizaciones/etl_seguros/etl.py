@@ -39,12 +39,15 @@ WATERMARK_CANDIDATES = ["id_interno", "id"]
 # - Sucursal_origen: marca de negocio (FORD/HYUNDAI/JEEP/FIAT) derivada en ETL.
 # - Marca: viene de la vista y se mostrara como "Modelo" en encabezado visible.
 # - NroSucursal: se mantiene por compatibilidad historica de la hoja.
+# Columnas canonicas de la hoja (orden final de escritura/comparacion).
 SHEET_COLUMNS_DB = [
+    "TipoVenta",
+    "FechaEntrega",
     "Prereserva",
     "Rubro",
     "PrecioVenta",
-    "Cliente",
-    "CuitCliente",
+    "ClienteRazonSocial",
+    "CuitCuil",
     "Email",
     "Telefono",
     "Domicilio",
@@ -62,14 +65,14 @@ SHEET_COLUMNS_DB = [
     "NroSucursal",
     "FechaPrereserva",
     "FechaVenta",
-    "FechaEntrega",
 ]
 
 # Encabezados visibles en Google Sheets.
-# Aqui mapeamos etiqueta de negocio:
-# - Sucursal_origen -> Marca
-# - Marca -> Modelo
 SHEET_COLUMNS_SHEET = [
+    "Tipo de Venta" if col == "TipoVenta" else
+    "Fecha de Entrega" if col == "FechaEntrega" else
+    "Cliente - Razón Social" if col == "ClienteRazonSocial" else
+    "CUIT - CUIL" if col == "CuitCuil" else
     "Año" if col == "Anio" else
     "Marca" if col == "Sucursal_origen" else
     "Modelo" if col == "Marca" else
@@ -862,7 +865,7 @@ def normalize_number_text(text: str) -> str:
         return str(int(number))
 
     normalized = format(number.normalize(), "f")
-    return normalized.rstrip("0").rstrip(".")
+    return normalized.rstrip("0").rstrip(".").replace(".", ",")
 
 
 def normalize_for_comparison(column_name: str, value) -> str:
