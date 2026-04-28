@@ -865,7 +865,7 @@ def normalize_number_text(text: str) -> str:
         return str(int(number))
 
     normalized = format(number.normalize(), "f")
-    return normalized.rstrip("0").rstrip(".").replace(".", ",")
+    return normalized.rstrip("0").rstrip(".").replace(",", ".")
 
 
 def normalize_for_comparison(column_name: str, value) -> str:
