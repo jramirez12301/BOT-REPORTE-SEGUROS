@@ -27,8 +27,11 @@ credentials.*.json
 # Archivos de Estado y Logs
 watermark.json
 etl.log
+etl.log.*
 *.log
 logs/
+runtime/
+**/runtime/
 
 # Datos temporales de automatizaciones
 **/watermark.json
@@ -45,3 +48,12 @@ __pycache__/
 # OS
 .DS_Store
 Thumbs.db
+
+# Certificados / llaves
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Datasets operativos (no versionar por defecto)
+automatizaciones/etl_seguros/dataset/**/*.xlsx
