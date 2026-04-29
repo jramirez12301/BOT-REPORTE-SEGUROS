@@ -22,6 +22,7 @@ El ETL soporta dos modos:
 - [Estilizado de Google Sheets](#estilizado-de-google-sheets)
 - [Testing con simulador](#testing-con-simulador)
 - [Troubleshooting rapido](#troubleshooting-rapido)
+- [Flujo y arquitectura de la automatizacion](#flujo-y-arquitectura-de-la-automatizacion)
 
 ## Inicio rapido
 
@@ -36,6 +37,72 @@ python etl.py --start-date 20260201 --end-date 20260301 --dry-run
 
 ```bash
 python etl.py --start-date 20260201 --end-date 20260301
+```
+
+## Flujo y arquitectura de la automatizacion
+
+Esta seccion detalla visualmente como opera el script, sus componentes y el viaje de los datos.
+
+### Diagrama de flujo operativo
+
+```mermaid
+graph TD
+    A[Inicio ETL] --> B{"¿Modo?"}
+    B -- "--testing" --> C[Extracción Incremental MySQL]
+    B -- "Producción" --> D[Extracción por Rango SQL Server]
+    C --> E[Deduplicación de Registros]
+    D --> E
+    E --> F[Clasificación vs Google Sheets]
+    F --> G{"¿Cambios?"}
+    G -- "Sí" --> H[Escritura por Lotes a Sheets]
+    G -- "No" --> I[Saltar Escritura]
+    H --> J[Registrar Auditoría en BD]
+    I --> J
+    J --> K[Fin]
+```
+
+### Arquitectura y componentes
+
+```mermaid
+graph LR
+    subgraph "Servidor Linux (Docker/Cron)"
+        ETL[Script ETL Python]
+    end
+    subgraph "Orígenes de Datos"
+        SQLS[SQL Server multi-sucursal<br/>FORD / HYUNDAI / JEEP / FIAT]
+        MYSQL[MySQL Testing]
+    end
+    subgraph "Destinos y Auditoría"
+        SHEETS[Google Sheets API]
+        ADB[Audit DB MySQL<br/>EJECUCION / LOG_PROCESOS]
+    end
+    ETL -- Consulta --> SQLS
+    ETL -- Consulta --> MYSQL
+    ETL -- Sincroniza --> SHEETS
+    ETL -- Registra --> ADB
+```
+
+### Secuencia de sincronización de datos
+
+```mermaid
+sequenceDiagram
+    participant ETL as Script ETL
+    participant DB as Bases de Datos
+    participant GS as Google Sheets
+    participant AUD as DB Auditoría
+
+    ETL->>AUD: Iniciar Ejecución
+    ETL->>DB: Extraer registros (SQL Server/MySQL)
+    DB-->>ETL: Datos extraídos
+    ETL->>GS: Obtener estado actual (Snapshot)
+    GS-->>ETL: Estado de la hoja
+    ETL->>ETL: Clasificar (Insert/Update/Noop)
+    alt Hay Cambios
+        ETL->>GS: Batch Update / Append Rows
+        GS-->>ETL: Confirmación API
+    end
+    ETL->>AUD: Persistir resultados y errores
+    AUD-->>ETL: ID Ejecución
 ```
 
 ## Alcance funcional actual
