@@ -155,7 +155,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--start-date",
-        type=parse_start_date,
+        type=parse_start_date_arg,
         help=(
             "Solo en PRODUCCION. Formato YYYYMMDD para definir fecha inicial de carga. "
             "Si no se informa, se usa la fecha de hoy."
@@ -163,7 +163,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--end-date",
-        type=parse_start_date,
+        type=parse_end_date_arg,
         help=(
             "Solo en PRODUCCION y junto con --start-date. Formato YYYYMMDD para definir fecha final. "
             "Si no se informa, se usa la fecha de hoy."
@@ -192,13 +192,23 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def parse_start_date(value: str) -> str:
-    """Valida YYYYMMDD y devuelve el mismo formato para SQL Server."""
+def parse_date_yyyymmdd(value: str, arg_name: str) -> str:
+    """Valida YYYYMMDD calendario y devuelve el mismo formato para SQL Server."""
     try:
         parsed = datetime.strptime(value, "%Y%m%d")
     except ValueError as exc:
-        raise argparse.ArgumentTypeError("--start-date debe tener formato YYYYMMDD") from exc
+        raise argparse.ArgumentTypeError(
+            f"{arg_name} invalido: '{value}'. Formato requerido YYYYMMDD y fecha calendario valida"
+        ) from exc
     return parsed.strftime("%Y%m%d")
+
+
+def parse_start_date_arg(value: str) -> str:
+    return parse_date_yyyymmdd(value, "--start-date")
+
+
+def parse_end_date_arg(value: str) -> str:
+    return parse_date_yyyymmdd(value, "--end-date")
 
 
 def setup_logging(log_file: Path) -> None:
@@ -877,12 +887,62 @@ def normalize_for_comparison(column_name: str, value) -> str:
     if column_name in numeric_like_columns:
         return normalize_number_text(text)
 
+    date_columns = {"FechaEntrega", "FechaPrereserva", "FechaVenta"}
+    if column_name in date_columns:
+        return normalize_date_for_comparison(text)
+
     # Algunas columnas llegan con ceros a la izquierda desde BD
     # (ej: CodigoUnidad=00061256, NroSucursal=01), pero Sheets suele mostrarlas sin cero.
     # Para evitar updates innecesarios, comparamos estas columnas por valor numerico.
     leading_zero_columns = {"CodigoUnidad", "NroSucursal", "MarcaModelo"}
     if column_name in leading_zero_columns and text.isdigit():
         return str(int(text))
+
+    return text
+
+
+def normalize_date_for_comparison(text: str) -> str:
+    """Normaliza fechas equivalentes (YYYYMMDD, dd/mm/YYYY, ISO) a YYYYMMDD."""
+    raw = normalize_cell_value(text)
+    if not raw:
+        return ""
+
+    candidates = [
+        (r"^\d{8}$", "%Y%m%d"),
+        (r"^\d{2}/\d{2}/\d{4}$", "%d/%m/%Y"),
+        (r"^\d{4}-\d{2}-\d{2}$", "%Y-%m-%d"),
+    ]
+    for pattern, fmt in candidates:
+        if re.match(pattern, raw):
+            try:
+                return datetime.strptime(raw, fmt).strftime("%Y%m%d")
+            except ValueError:
+                return raw
+    return raw
+
+
+def format_date_for_sheet(column_name: str, value, warned_invalid_dates: set[tuple[str, str]]) -> str:
+    """Formatea fechas validas a dd/mm/YYYY para visualizacion en Sheets."""
+    text = normalize_cell_value(value)
+    if not text:
+        return ""
+
+    if column_name not in {"FechaEntrega", "FechaPrereserva", "FechaVenta"}:
+        return text
+
+    if re.match(r"^\d{8}$", text):
+        try:
+            return datetime.strptime(text, "%Y%m%d").strftime("%d/%m/%Y")
+        except ValueError:
+            key = (column_name, text)
+            if key not in warned_invalid_dates:
+                warned_invalid_dates.add(key)
+                logging.warning(
+                    "Fecha invalida detectada en origen. Columna=%s valor=%s. Se conserva texto original.",
+                    column_name,
+                    text,
+                )
+            return text
 
     return text
 
@@ -982,11 +1042,14 @@ def read_sheet_snapshot(worksheet, sleep_seconds: float) -> tuple[dict, dict]:
         row_values_by_entity = {}
         duplicates = 0
 
+        idx_prereserva = SHEET_COLUMNS_DB.index("Prereserva")
+        idx_origen = SHEET_COLUMNS_DB.index("Sucursal_origen")
+
         for row_number, row in enumerate(all_values[1:], start=2):
             row_27 = (row + [""] * len(SHEET_COLUMNS_SHEET))[: len(SHEET_COLUMNS_SHEET)]
             normalized_row = [normalize_cell_value(value) for value in row_27]
-            prereserva = normalized_row[0]
-            sucursal_origen = normalized_row[SHEET_COLUMNS_DB.index("Sucursal_origen")]
+            prereserva = normalized_row[idx_prereserva]
+            sucursal_origen = normalized_row[idx_origen]
             entity_key = build_entity_key(prereserva, sucursal_origen)
 
             if not prereserva or not sucursal_origen:
@@ -1018,11 +1081,18 @@ def classify_records(df: pd.DataFrame, sheet_index: dict, sheet_rows: dict) -> t
     append_rows = []
     updates = []
     noop_count = 0
+    warned_invalid_dates: set[tuple[str, str]] = set()
+
+    idx_prereserva = SHEET_COLUMNS_DB.index("Prereserva")
+    idx_origen = SHEET_COLUMNS_DB.index("Sucursal_origen")
 
     for _, row in df.iterrows():
-        mysql_row = [resolve_source_value(row, col) for col in SHEET_COLUMNS_DB]
-        prereserva = mysql_row[0]
-        sucursal_origen = mysql_row[SHEET_COLUMNS_DB.index("Sucursal_origen")]
+        mysql_row = [
+            format_date_for_sheet(col, resolve_source_value(row, col), warned_invalid_dates)
+            for col in SHEET_COLUMNS_DB
+        ]
+        prereserva = mysql_row[idx_prereserva]
+        sucursal_origen = mysql_row[idx_origen]
         entity_key = build_entity_key(prereserva, sucursal_origen)
 
         if not prereserva:
