@@ -130,3 +130,37 @@ Tablas:
 - Fase 3 aplicada en `automatizaciones/etl_seguros/etl.py`:
   - Se separan validadores de `--start-date` y `--end-date`.
   - Mensaje de error ahora indica argumento correcto y causa (formato/calendario).
+- Fase 4 verificada operativamente:
+  - `dry-run` productivo ejecutado con `--start-date 20260201 --end-date 20260301`.
+  - Resultado: `extraidos=269`, `deduplicados=218`, `append=218`, `update=0`, `noop=0`, `FIN=EXITO`.
+  - Se valido mensaje de UX CLI para fecha invalida:
+    - `argument --end-date: --end-date invalido: '20260230'. Formato requerido YYYYMMDD y fecha calendario valida`
+
+## Ajuste de usabilidad Google Sheets (2026-04-29)
+
+- Se agrego script operativo `scripts/sheet_styling_seguros.py` para aplicar estilo y reglas de uso en `Hoja 1`.
+- Acciones aplicadas en la hoja:
+  - Formato de encabezado (fondo azul, texto blanco, negrita, centrado).
+  - Formato de fecha `dd/mm/yyyy` en `FechaEntrega`, `FechaPrereserva`, `FechaVenta`.
+  - Formato numerico para `PrecioVenta` (`$ #,##0`).
+  - Freeze de fila 1 y filtro basico al rango total.
+  - Alta automatica de columnas usuario faltantes al final:
+    - `Primer contacto`
+    - `Segundo contacto`
+    - `Vendido / No vendido`
+  - Validaciones:
+    - `Primer contacto` y `Segundo contacto`: fecha valida.
+    - `Vendido / No vendido`: lista (`Vendido`, `No vendido`, `Pendiente`).
+  - Formato condicional por fila segun `Vendido / No vendido`.
+
+## Estilizado UX avanzado (2026-04-29)
+
+- Se actualizo `scripts/sheet_styling_seguros.py` con plan A/B/C/D/E ejecutado y aplicado en hoja real.
+- Criterios UX implementados:
+  - Prioridad visual de estado: color de fila completa por `Vendido / No vendido` (`Vendido`, `No vendido`, `Pendiente`).
+  - Banding blanco/gris alternado para mejorar lectura en filas sin estado.
+  - Freeze en L: fila 1 y columnas `A:F`.
+  - Tipografia base `Arial`.
+  - Ajuste de anchos estrategicos por columna con `updateDimensionProperties`.
+  - `wrapStrategy=WRAP` en `Email` y `Domicilio`.
+  - Idempotencia activa: limpieza previa de `conditionalFormats` y `bandedRanges` antes de re-aplicar.
