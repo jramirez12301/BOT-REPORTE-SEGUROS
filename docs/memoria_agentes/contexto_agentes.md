@@ -164,3 +164,14 @@ Tablas:
   - Ajuste de anchos estrategicos por columna con `updateDimensionProperties`.
   - `wrapStrategy=WRAP` en `Email` y `Domicilio`.
   - Idempotencia activa: limpieza previa de `conditionalFormats` y `bandedRanges` antes de re-aplicar.
+
+## Estandar para proximas automatizaciones (2026-04-29)
+
+- Se preparo una skill operativa base en `docs/skill_automatizaciones_multisucursal.md`.
+- La skill define:
+  - Regla cero de inicializacion por lectura de memorias.
+  - Arquitectura fija por carpetas y aislamiento por automatizacion.
+  - Guardrails de seguridad con `APP_ENV` y dry-run forzado fuera de `PROD`.
+  - Contrato transversal de auditoria y metricas obligatorias.
+  - Convencion de tags para `LOG_PROCESOS`.
+  - Definition of Done para entregas futuras.

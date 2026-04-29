@@ -1,99 +1,93 @@
-# README
+# ETL de Seguros: sincronizacion hacia Google Sheets
 
-# **ETL de Seguros: sincronización de MySQL a Google Sheets**
+Este proyecto sincroniza operaciones de seguros hacia Google Sheets para uso operativo diario.
 
-Este proyecto sincroniza el **historial de operaciones de ventas,** transformando datos transaccionales almacenados en **MySQL** en una vista organizada en **Google Sheet**
+El ETL soporta dos modos:
 
-El sistema permite **rastrear la evolución de cada operación en el tiempo,** reflejando de forma automática cada **cambio de estado:**
+- `--testing`: extraccion incremental desde MySQL con `watermark.json`.
+- Produccion (default): extraccion desde SQL Server multi-sucursal por rango de `FechaPrereserva`.
 
-> — desde la **prereserva inicial** hasta la **facturación y entrega final** —
-> 
+## Indice rapido
 
-De esta manera, se asegura que la información esté siempre actualizada, sea consistente y no dependa de procesos manuales de lectura.
+- [Alcance funcional actual](#alcance-funcional-actual)
+- [Reglas de datos relevantes](#reglas-de-datos-relevantes)
+- [Estructura del proyecto](#estructura-del-proyecto)
+- [Requisitos](#requisitos)
+- [Ejecucion](#ejecucion)
+  - [Manual](#manual-desde-automatizacionesetl_seguros)
+  - [Docker](#docker-recomendado-en-servidor-linux)
+  - [Ejecucion automatica con cron](#ejecucion-automatica-con-cron)
+- [Validacion de fechas de parametros](#validacion-de-fechas-de-parametros)
+- [Auditoria operativa](#auditoria-operativa)
+- [Estilizado de Google Sheets](#estilizado-de-google-sheets)
+- [Testing con simulador](#testing-con-simulador)
+- [Troubleshooting rapido](#troubleshooting-rapido)
 
-## ¿Qué hace actualmente el sistema?
+## Inicio rapido
 
-El programa funciona de forma incremental, procesando únicamente **datos nuevos** y **manteniendo una vista actualizada** en **Google Sheets.**
+1. Configurar `.env` y `credentials.json`.
+2. Ejecutar dry-run productivo:
 
-**Funcionamiento**
-
-- **Detecta nuevos registros en la base de datos**
-    - Solo procesa operaciones que no fueron tratadas, utiliza la última `id` procesada guardada en un `watermark.json`
-    - La lectura de la última id procesada, permite hacer un `SELECT` en la base de datos filtrando solo nuevos logs transaccionales.
-    
-    > **Nota:** Está previsto reducir la dependencia de `watermark.json`
-    > 
-- **Reconstruye el estado más reciente de cada operación**
-    - Si una misma **Prereserva** aparece varias veces (por cambios de estado), el sistema conserva únicamente la versión más actual.
-- **Decide que hacer con cada registro**
-    - Para cada operación, compara lo que ya existe en **Google Sheets** y determina:
-        - Insertar un nuevo registro si no existe
-        - Actualizarlo si hubo cambios
-        - Ignorarlo si no cambio nada
-- **Hojas listas para uso operativo**
-    - Asegura que exista un encabezado correcto
-    - Mantiene filtros activos para facilitar el uso
-    - Si esta configuración falla, **no afecta los datos**, solo la presentación
-
-## Flujo del BOT
-
-```mermaid
-graph TD
-    A[Cron Job / Tarea Programada] --> B[Inicia Script ETL]
-
-    B --> C[Leer watermark.json]
-    C --> D[Extraer nuevos registros desde MySQL id mayor a last_id]
-
-    D --> E[Transformación en memoria]
-    E --> F[Deduplicar por Prereserva último estado]
-
-    B --> G[Leer estado actual de Google Sheets]
-
-    F --> H{¿Existe la Prereserva en Sheets?}
-
-    H -->|No| I[Clasificar como INSERT]
-    H -->|Sí| J{¿Cambió algún campo?}
-
-    J -->|No| K[Clasificar como NO-OP]
-    J -->|Sí| L[Clasificar como UPDATE]
-
-    I --> M[Batch INSERT append_rows]
-    L --> N[Batch UPDATE batch_update]
-
-    M --> O[Actualizar watermark.json]
-    N --> O
-    K --> O
-
-    O --> P[Fin del proceso]
+```bash
+python etl.py --start-date 20260201 --end-date 20260301 --dry-run
 ```
 
-## 🛠️ Instalación Local
+3. Ejecutar corrida real:
 
-1. **Clonar el repositorio o descargar los archivos**:
-Asegúrate de tener en tu carpeta: `etl.py`, `requirements.txt` y `.env.example`.
-2. **Crear y activar un entorno virtual**:
-    
-    ```bash
-    python -m venv venv
-    # En Windows:
-    .\venv\Scripts\activate
-    # En Linux/macOS:
-    source venv/bin/activate
-    ```
-    
-3. **Instalar dependencias**:
-    
-    ```bash
-    pip install -r requirements.txt
-    ```
+```bash
+python etl.py --start-date 20260201 --end-date 20260301
+```
 
-### Dependencias Linux para SQL Server (pyodbc + ODBC)
+## Alcance funcional actual
 
-Si ejecutas el ETL en Linux para extraccion productiva desde SQL Server, ademas de `pip install -r requirements.txt` necesitas instalar dependencias del sistema operativo.
+- Extraccion multi-sucursal en produccion desde vistas `dbo.Vista_Seguros`.
+- Marca de origen por sucursal generada por ETL: `FORD`, `HYUNDAI`, `JEEP`, `FIAT`.
+- Deduplicacion por clave compuesta de negocio: `Prereserva + Sucursal_origen`.
+- Clasificacion de cambios contra Google Sheets: `INSERT`, `UPDATE`, `NOOP`.
+- Escritura por lotes con reintentos ante errores API (429/5xx).
+- Auditoria transaccional en BD (`PROCESOS`, `EJECUCION`, `LOG_PROCESOS`).
 
-#### Ubuntu/Debian (recomendado)
+## Reglas de datos relevantes
 
-Si ejecutas como `root`, usa los comandos sin `sudo`.
+- `Sucursal_origen` no viene de la vista: la crea el ETL segun la base consultada.
+- Fechas operativas (`FechaEntrega`, `FechaPrereserva`, `FechaVenta`) se escriben en Sheets como `dd/mm/yyyy`.
+- Si una fecha de origen es invalida, se conserva texto original y se registra warning.
+- `PrecioVenta` se normaliza para evitar diferencias de formato al comparar.
+
+## Estructura del proyecto
+
+```text
+/Entorno
+├── automatizaciones/
+│   └── etl_seguros/
+│       ├── etl.py
+│       ├── test/
+│       └── dataset/
+├── core/
+│   ├── db_utils.py
+│   └── audit_logger.py
+├── deploy/
+│   └── etl_seguros/
+├── docs/
+└── scripts/
+    └── sheet_styling_seguros.py
+```
+
+## Requisitos
+
+1. Python y entorno virtual.
+2. Dependencias Python:
+
+```bash
+pip install -r requirements.txt
+```
+
+3. Variables de entorno (`.env`) basadas en `.env.example`.
+4. Credenciales de Google (`credentials.json`) compartidas con el spreadsheet.
+
+### Dependencias Linux para SQL Server (produccion)
+
+Si se ejecuta en Linux con SQL Server:
 
 ```bash
 apt-get update
@@ -105,197 +99,195 @@ apt-get update
 ACCEPT_EULA=Y apt-get install -y msodbcsql18
 ```
 
-> Si usas otra version de Ubuntu, reemplaza `24.04` en la URL por tu version.
-
-#### Verificacion rapida
+Verificacion rapida:
 
 ```bash
 python -c "import pyodbc; print(pyodbc.drivers())"
 ```
 
-Debe aparecer al menos uno de estos drivers:
-- `ODBC Driver 18 for SQL Server`
-- `ODBC Driver 17 for SQL Server`
+Debe aparecer al menos `ODBC Driver 18 for SQL Server` o `ODBC Driver 17 for SQL Server`.
 
-Si la salida es `[]`, el ETL en modo produccion no podra conectarse a SQL Server.
-    
-4. **Configurar variables de entorno**:
-Copia el archivo de ejemplo y edítalo con tus credenciales reales:
-    
-    ```bash
-    cp .env.example .env
-    ```
-    
-    *Nota: En Windows usa `copy .env.example .env`.*
-    
-5. **Añadir credenciales de Google**:
-Coloca tu archivo `credentials.json` en la raíz del proyecto.
+## Ejecucion
 
-## Ejecución del ETL
+### Manual (desde `automatizaciones/etl_seguros`)
 
-El programa se puede ejecutar manualmente o configurarse para que funcione de forma automática.
+Ejecucion productiva por defecto (si no se pasan fechas, usa hoy-hoy):
 
-### ✔ Ejecucion con Docker (recomendada para servidor Linux)
+```bash
+python etl.py
+```
 
-Desde la raiz del proyecto `Entorno/`:
+Ejecucion productiva por rango:
+
+```bash
+python etl.py --start-date YYYYMMDD --end-date YYYYMMDD
+```
+
+Ejemplo:
+
+```bash
+python etl.py --start-date 20260201 --end-date 20260301
+```
+
+Simulacion sin escritura en Sheets:
+
+```bash
+python etl.py --start-date 20260201 --end-date 20260301 --dry-run
+```
+
+Modo testing incremental (MySQL):
+
+```bash
+python etl.py --testing
+```
+
+Reset de watermark en testing:
+
+```bash
+python etl.py --testing --reset-watermark
+```
+
+### Docker (recomendado en servidor Linux)
+
+Desde la raiz `Entorno/`:
+
+1. Build de imagen (compila/prepara el contenedor en la maquina donde se va a usar):
 
 ```bash
 docker compose -f deploy/etl_seguros/docker-compose.yml build
 ```
 
-Mostrar ayuda del ETL dentro del contenedor:
+2. Ver ayuda del script dentro del contenedor (lista parametros disponibles y forma de uso):
 
 ```bash
 docker compose -f deploy/etl_seguros/docker-compose.yml run --rm etl_seguros_bot --help
 ```
 
-Ejecutar ETL normal (sin parametros, usa fecha actual en produccion):
+3. Ejecutar ETL productivo por rango de fechas (`--start-date` y `--end-date`):
+
+```bash
+docker compose -f deploy/etl_seguros/docker-compose.yml run --rm etl_seguros_bot --start-date 20260201 --end-date 20260301
+```
+
+4. Ejecutar ETL sin parametros (en produccion usa fecha actual):
 
 ```bash
 docker compose -f deploy/etl_seguros/docker-compose.yml run --rm etl_seguros_bot
 ```
 
-Ejecutar ETL por rango de `FechaPrereserva`:
+## Ejecucion automatica con cron
 
-```bash
-docker compose -f deploy/etl_seguros/docker-compose.yml run --rm etl_seguros_bot --start-date YYYYMMDD --end-date YYYYMMDD
-```
+Para programar ejecucion automatica en Linux:
 
-Ejemplo real:
-
-```bash
-docker compose -f deploy/etl_seguros/docker-compose.yml run --rm etl_seguros_bot --start-date 20260101 --end-date 20260201
-```
-
-### **✔ Ejecución manual**
-
-```bash
-python etl.py
-```
-
-Esto ejecuta el ciclo completo del ETL:
-
-- Detectar registros en base de datos
-- Procesar cambios
-- Actualizar el Google Sheet
-
-### ✔ Ejecución automática (Cron Job Linux)
-
-Configuración **cron job** para que corra cada 15 minutos:
+1. Editar cron:
 
 ```bash
 crontab -e
 ```
 
-En caso de pasarlo a entorno productivo, 
+2. Agregar jobs con `flock` para evitar corridas superpuestas:
 
+```cron
+# Ejecuta cada 30 minutos entre 08:00 y 17:30 (Lunes a Viernes)
+0,30 8-17 * * 1-5 /usr/bin/flock -n /tmp/etl_seguros.lock -c 'cd /home/Entorno && /usr/bin/docker compose -f deploy/etl_seguros/docker-compose.yml run --rm etl_seguros_bot >> runtime/etl_seguros/cron.log 2>&1'
+
+# Ejecuta la ultima pasada exactamente a las 18:00 (Lunes a Viernes)
+0 18 * * 1-5 /usr/bin/flock -n /tmp/etl_seguros.lock -c 'cd /home/Entorno && /usr/bin/docker compose -f deploy/etl_seguros/docker-compose.yml run --rm etl_seguros_bot >> runtime/etl_seguros/cron.log 2>&1'
 ```
-*/15 * * * * /ruta/al/proyecto/venv/bin/python /ruta/al/proyecto/etl.py
-```
 
-## 📂 Estructura de Archivos
+Notas:
 
-- `etl.py`
-    - Script principal del sistema. Contiene toda la lógica del proceso ETL:
-        - **Extracción** desde MySQL
-        - **Transformación** de datos
-        - **Actualización** en Google Sheets
-- `watermark.json`: Almacena el último `id` procesado. Permite al programa continuar donde se quedo en la ejecución anterior.
-- `etl.log`: Archivo de logs donde se registra cada ejecución del proceso, incluyendo errores y acciones realizadas.
-- `credentials.json`: Llave de acceso a la API de Google
-- `.env`: Archivo de configuración con variables sensibles (credenciales de base de datos, IDs de Sheets, etc.).
+- Ajustar `/home/Entorno` al path real del servidor.
+- `flock` evita que una nueva corrida inicie si la anterior sigue en ejecucion.
+- El log de cron en este ejemplo queda en `runtime/etl_seguros/cron.log`.
 
-## 🧪 Testing del Sistema
+## Validacion de fechas de parametros
 
-El proyecto incluye un simulador, el cual permite generar datos y validar comportamiento del ETL en distintos escenarios.
+Los parametros `--start-date` y `--end-date` validan:
 
-### Simulador de Concesionaria
+- Formato `YYYYMMDD`.
+- Fecha calendario valida.
 
-El script `test/simulador_concesionaria.py` simula el comportamiento de un sistema transaccional real.
+Ejemplo invalido:
 
-**Permite:**
+- `20260230` falla porque el dia no existe.
 
-- Generar operaciones nuevas
-    - Crear clientes referenciados con (Prerservas)
-- Simular **cambios de estado** en el tiempo
-    - Ya sea cambios como Fecha de Patentamiento, Corrección de nombres de personas
-- Preparado para simular cualquier tipo de cambios que ocurran en la vida real.
+## Auditoria operativa
 
-## Modo de Uso
+Cada corrida persiste:
 
-### ✔Modo interactivo
+- Registro de ejecucion con resumen y estado final.
+- Detalle de eventos por fuentes, inserts, updates, warnings y errores.
+
+Estados posibles:
+
+- `EXITO`
+- `ADVERTENCIA`
+- `ERROR`
+
+## Estilizado de Google Sheets
+
+Script disponible:
 
 ```bash
-python .\test\simulador_concesionaria.py--interactive
+python scripts/sheet_styling_seguros.py
 ```
 
-Abre un asistente en consola que guía paso a paso la configuración de la simulación.
+Acciones del script:
 
-### ✔ Modo prueba (sin base de datos)
+- Tipografia Arial y encabezado operativo.
+- Freeze fila 1 y columnas `A:F`.
+- Banding blanco/gris alternado.
+- Color de fila completa por estado en `Vendido / No vendido`.
+- Validaciones para columnas de contacto y estado.
+- Ajustes de ancho de columnas y wrap en `Email`/`Domicilio`.
+- Ejecucion idempotente (limpia banding/reglas previas antes de aplicar).
+
+## Testing con simulador
+
+Script:
+
+`automatizaciones/etl_seguros/test/simulador_concesionaria.py`
+
+Este simulador permite generar actividad de concesionaria sin depender de la base real de produccion.
+Su objetivo es poblar/estresar el flujo de testing del ETL con operaciones nuevas y cambios de estado.
+
+Conceptos principales:
+
+- `--source faker`: genera usuarios y operaciones al azar.
+- `--source replay`: reutiliza datos existentes de ejemplo (historicos) para repetir escenarios realistas.
+- `--mode db`: inserta los registros generados en la base de datos de testing.
+- `--mode log`: no inserta en base, solo muestra/loguea los datos creados.
+- `--new-count`: cantidad de prereservas nuevas a crear (inserts iniciales).
+- `--repeat-count`: cantidad de prereservas/usuarios que tendran eventos de cambio de estado.
+
+Recomendacion:
+
+- Ejecutar siempre `--mode db` contra una base dedicada de testing, nunca contra produccion.
+
+Ejemplos:
+
+Modo interactivo:
 
 ```bash
-python .\test\simulador_concesionaria.py--source faker--mode log--new-count5--repeat-count3
+python .\test\simulador_concesionaria.py --interactive
 ```
 
-- No escribe en MySQL
-- Muestra los eventos generados en consola
-- Ideal para entender qué datos se generan
-
-### 💾 Modo inyección (base de datos)
+Modo log sin base de datos:
 
 ```bash
-python .\test\simulador_concesionaria.py--source faker--mode db--new-count50--repeat-count25--delay2
+python .\test\simulador_concesionaria.py --source faker --mode log --new-count 5 --repeat-count 3
 ```
 
-- Inserta datos en MySQL
-- Simula el uso real del sistema
-
-### ⏪ Modo replay (datos históricos) - RECOMENDADO
-
-```
-python .\test\simulador_concesionaria.py--source replay--mode db--new-count20--repeat-count15--delay1
-```
-
-- Reproduce datos reales desde un archivo
-    - Se utiliza un dataset de reportes reales viejos de la empresa para el testing
-- Permite testear el ETL con escenarios más cercanos a producción
-
-## 🧩 Parámetros principales
-
-- `-source`: `faker` (datos simulados) o `replay` (histórico)
-- `-mode`: `log` (solo consola) o `db` (inserta en MySQL)
-- `-new-count`: cantidad de operaciones nuevas
-- `-repeat-count`: cantidad de eventos repetidos (evolución de estado)
-- `-delay`: pausa entre eventos (simulación en tiempo real)
-- `-seed`: fija resultados reproducibles
-- `-reset-table`: reinicia la tabla de testing
-- `-interactive`: modo guiado por consola
-- `-replay-file`: archivo de entrada para modo replay
-
-## Flujo de Pruebas
-
-Pasos recomendados para realizar el testing
-
-### 1. Resetear la base de datos de testing
+Modo DB con replay:
 
 ```bash
-python .\test\simulador_concesionaria.py --reset-table
+python .\test\simulador_concesionaria.py --source replay --mode db --new-count 20 --repeat-count 15 --delay 1
 ```
 
-Reinicia la tabla `Seguros` (el `id` vuelve a 1).
+## Troubleshooting rapido
 
-### 2. Generar datos iniciales
-
-```bash
-python .\test\simulador_concesionaria.py --source replay --mode db --new-count 20 --repeat-count 10 --delay 0
-```
-
-Simula operaciones nuevas y algunos cambios de estado.
-
-### 3. Ejecutar el ETL
-
-```
-python etl.py
-```
-
-Procesa los datos y los sincroniza con Google Sheets.
+- Error `Spreadsheet not found (404)`: revisar `SPREADSHEET_ID` y permisos de la cuenta de servicio.
+- Error `Worksheet not found`: revisar `SHEET_NAME`.
+- Error ODBC en Linux: instalar `msodbcsql18` y `unixodbc`, validar `pyodbc.drivers()`.
+- Muchos `INSERT` en `dry-run`: suele indicar hoja vacia o registros aun no presentes para ese rango.

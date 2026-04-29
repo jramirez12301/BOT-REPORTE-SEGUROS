@@ -1,366 +1,240 @@
-# DOCUMENTACIÓN:            Sistema de Auditoría de Automatizaciones
+# Documentacion: Sistema de Auditoria de Automatizaciones
 
-# Objetivo
+## Indice rapido
 
-El objetivo de este estándar es **centralizar la trazabilidad y monitoreo** de los procesos automatizados en una infraestructura única.
+- [Objetivo](#objetivo)
+- [Modelo de datos](#modelo-de-datos)
+- [Contrato tecnico de auditoria](#contrato-tecnico-de-auditoria)
+- [Convencion de detalle](#convencion-de-detalle)
+- [Flujo de auditoria](#flujo-de-auditoria)
+- [Manejo de errores](#manejo-de-errores)
+- [Queries utiles](#queries-utiles)
 
-Se busca:
+## Objetivo
 
-- Eliminar dependencia de logs locales disperso
-- Permitir auditoria centralizada
-- Analizar volúmenes de procesamiento
-- Facilitar debugging y soporte operativo
+Estandarizar la trazabilidad de todas las automatizaciones en una infraestructura unica de auditoria.
 
-# Modelo de Datos (DER)
+Beneficios:
+
+- Centraliza ejecuciones y detalle operativo por proceso.
+- Reduce dependencia de logs locales dispersos.
+- Mejora soporte, debugging y analisis historico.
+
+## Modelo de datos
 
 ![image.png](image.png)
 
-El sistema se basa en una arquitectura de tres niveles, separando **definición del proceso, su ejecución** y el **detalle de lo ocurrido** en cada corrida.
+La auditoria se organiza en tres niveles:
 
-# Estructura de Auditoría
+1. `PROCESOS`: catalogo de procesos.
+2. `EJECUCION`: cada corrida de un proceso.
+3. `LOG_PROCESOS`: detalle de lo ocurrido en la corrida.
 
-## **PROCESOS →** Definición del proceso
+### PROCESOS
 
-Representa el catálogo de automatizaciones disponibles
+- Identifica en forma unica cada automatizacion.
+- Campos esperados: `id_proceso`, `nombre_proceso`, `descripcion_proceso`.
 
-- Cada registro corresponde a un **bot/automatizador/proceso** de forma única
-- Contiene:
-    - Nombre del proceso
-    - Descripción de lo que hace
-
-### EJEMPLO
+Ejemplo:
 
 | id_proceso | nombre_proceso | descripcion_proceso |
 | --- | --- | --- |
-| 1 | BOT_SEGUROS | Sincroniza operaciones de seguros MySQL -> Google Sheets |
-| 2 | BOT_STOCK_WEB | Publica stock de unidades en portal web de concesionaria |
+| 1 | ETL_SEGUROS | Sincroniza operaciones de seguros hacia Google Sheets |
+| 2 | STOCK_WEB | Publica stock de unidades en portal web |
 
-## **EJECUCIÓN →** Registro de cada corrida
+### EJECUCION
 
-- Cada vez que un proceso se ejecuta, se genera un nuevo registro.
-- Permite conocer:
-    - Fecha de inicio y fin
-    - Estado de ejecución (`EXITO`, `ERROR`, `ADVERTENCIA`)
-- Resumen de ejecución
+- Registra inicio, fin, resumen y estado final de cada corrida.
+- Estados validos: `EXITO`, `ADVERTENCIA`, `ERROR`.
 
-Esta entidad permite:
-
-- Medir tiempos de ejecución
-    - A partir de `fecha_inicio` y  `fecha_fin` es posible identificar demoras y mejorar performance del proceso
-- Detectar fallos
-    - A través del campo `estado`
-
-Es importante que `resumen` tenga síntesis clara, por ejemplo
-
-> `10 INSERT, 2 UPDATE, 1 ERROR`
-> 
-
-### EJEMPLO
+Ejemplo:
 
 | id_ejecucion | id_proceso | fecha_inicio | fecha_fin | resumen | estado |
 | --- | --- | --- | --- | --- | --- |
-| 1001 | 1 | 2026-04-10 17:13:19 | 2026-04-10 17:13:23 | 10 INSERT, 0 UPDATE, 0 ERROR | EXITO |
-| 1002 | 1 | - | - | 3 INSERT, 2 UPDATE, 1 ERROR | ERROR |
-| 2001 | 2 |  |  | 25 INSERT, 12 UPDATE, 0 ERROR |  |
+| 1001 | 1 | 2026-04-10 17:13:19 | 2026-04-10 17:13:23 | deduplicados=10, inserts=10, updates=0, deletes=0, warnings=0, errors=0 | EXITO |
+| 1002 | 1 | 2026-04-10 17:18:10 | 2026-04-10 17:18:14 | deduplicados=5, inserts=3, updates=2, deletes=0, warnings=1, errors=0 | ADVERTENCIA |
 
-## **LOG_PROCESOS → Detalle de ejecución**
+### LOG_PROCESOS
 
-Contiene el detalle completo de lo ocurrido durante la ejecución.
+- Almacena el detalle textual estructurado de una ejecucion.
+- Relacion: `LOG_PROCESOS.id_ejecucion -> EJECUCION.id_ejecucion`.
 
-- Cada registro está asociado a una ejecución `id_ejecución`
-- El campo `detalle` almacena un **log estructurado en formato texto**
-    
-    **Este campo debe:**
-    
-    - Estar correctamente redactado
-    - Reflejar las acciones realizadas por el proceso
-    - Permitir auditoría manual sin necesidad de consultar otras fuentes
+Importante:
 
-**Regla de negocio a seguir:**
+- No se garantiza una sola fila por ejecucion.
+- El detalle puede dividirse en multiples filas por chunking (`max_chunk_chars`).
+- Todas las filas pertenecen al mismo `id_ejecucion`.
 
-- Se registra **un único log por ejecución**
-- No se deben generar múltiples filas por evento
-- El campo **`detalle`**debe contener información **clara, estructurada y útil para auditoría**
+## Contrato tecnico de auditoria
 
-**Ejemplo de `detalle`**
+Fuente de verdad: `core/audit_logger.py`.
 
-```bash
-[INICIO] 2026-04-10 17:13:19
-[RESUMEN] extraidos=14, deduplicados=10, inserts=10, updates=0, errores=0
-[INSERT] 26030005, 26030021, 26030020, 26030022, 26030032, 26030040
-[UPDATE] 26020061 (2 campos), 26030076 (1 campo)
- - 26020061.Precioventa: '32,391,000.00' -> '32391000'
- - 26020061.Patente: '' -> 'AI091HC'
- - 26030076.Estadoavance: 'Autorizado' -> 'Facturada'
- [FIN] EXITO
+Ciclo de vida:
+
+`start -> record_* / set_metric -> mark_* -> persist`
+
+### Metodos principales
+
+- `start()`: inicia `fecha_inicio`.
+- `set_metric(name, value)`: agrega metrica al resumen.
+- `record_info(message)`: agrega informacion operativa.
+- `record_insert(entity_ids)`: registra ids insertados.
+- `record_update(entity_id, changes)`: registra update por entidad + detalle por campo.
+- `record_delete(entity_ids)`: registra ids eliminados (si aplica).
+- `record_warning(message)`: registra warning.
+- `record_error(message)`: registra error.
+- `record_detail_line(line)`: agrega lineas custom (ej: `SOURCE_*`).
+- `mark_success() | mark_warning() | mark_error()`: define estado final explicito.
+- `persist()`: inserta `EJECUCION` y `LOG_PROCESOS` en transaccion.
+
+### Reglas de estado
+
+- Si se usa `mark_success()`: estado `EXITO`.
+- Si se usa `mark_warning()`: estado `ADVERTENCIA`.
+- Si se usa `mark_error()`: estado `ERROR`.
+- Si no se marca estado:
+  - con warnings/errors registrados: `ADVERTENCIA`.
+  - sin warnings/errors: `EXITO`.
+
+### Formato de resumen
+
+`resumen` se compone con metricas `k=v` y contadores estructurales:
+
+- `inserts`, `updates`, `deletes`, `warnings`, `errors`.
+
+Ejemplo:
+
+`deduplicados=218, extraidos=269, noop=0, inserts=218, updates=0, deletes=0, warnings=0, errors=0`
+
+## Convencion de detalle
+
+El campo `detalle` debe mantener etiquetas consistentes para lectura humana y analisis posterior.
+
+Etiquetas recomendadas:
+
+- `[INICIO]` inicio de corrida
+- `[RESUMEN]` resumen global
+- `[INFO]` informacion relevante de ejecucion
+- `[SOURCE_START]` inicio de extraccion por host/sucursal
+- `[SOURCE_SUMMARY]` resumen por fuente
+- `[SOURCE_ERROR]` error operativo por fuente
+- `[INSERT]` ids insertados
+- `[UPDATE]` ids actualizados
+- `[DELETE]` ids eliminados
+- `[WARNING]` warnings de negocio/operacion
+- `[ERROR]` errores detectados
+- `[FIN]` estado final y timestamp de cierre
+
+Ejemplo de detalle:
+
+```text
+[INICIO] 2026-04-29 11:39:06
+[RESUMEN] deduplicados=218, extraidos=269, noop=0, inserts=218, updates=0, deletes=0, warnings=0, errors=0
+[INFO] Modo de ejecucion=PRODUCCION, Rango productivo aplicado: FechaPrereserva desde=20260201 hasta=20260301 origen=PARAMETROS
+[SOURCE_START] host_group=1 host=192.168.1.77 sucursales=FORD,HYUNDAI databases=ProyautMonti,ProyautAuto rango=20260201->20260301
+[SOURCE_SUMMARY] host_group=1 host=192.168.1.77 sucursal=FORD database=ProyautMonti extraidos=94
+[INSERT] 26020001|FORD, 26020001|FIAT, 26020001|JEEP
+[FIN] EXITO | 2026-04-29 11:39:12
 ```
 
-### EJEMPLO
-
-| id_log | id_ejecucion | detalle |
-| --- | --- | --- |
-| 5001 | 1001 | [INICIO] 2026-04-10 17:13:19
-[RESUMEN] extraidos=14, deduplicados=10, inserts=10, updates=0, errores=0
-[INSERT] 26030005, 26030021, 26030020, 26030022, 26030032, 26030040
-[FIN] EXITO |
-| 5002 | 1002 | [INICIO] 2026-04-10 17:18:10
-[RESUMEN] extraidos=7, deduplicados=5, inserts=3, updates=2, errores=1
-[INSERT] 26030043, 26020085, 26030006
-[UPDATE] 26020061 (9 campos), 26030076 (3 campos)
-26020061.Precioventa: '32,391,000.00' -> '32391000'
-26020061.Patente: '' -> 'AI091HC'
-[ERROR] APIError 400 batch_update: Unable to parse range A9:AA9
-[FIN] ERROR |
-
-# Flujo de auditoria
+## Flujo de auditoria
 
 ```mermaid
 graph TD
-A[Inicio Proceso] --> B[Crear EJECUCION]
-B --> C[Ejecutar lógica]
-C --> D[Generar LOG_PROCESOS]
-D --> E[Actualizar EJECUCION]
-E --> F[Fin]
+A[Inicio Proceso] --> B[AuditLogger.start]
+B --> C[Record de metricas y eventos]
+C --> D[Definir estado final mark_*]
+D --> E[AuditLogger.persist]
+E --> F[Insert EJECUCION + Insert N filas LOG_PROCESOS]
+F --> G[Fin]
 ```
 
-# Convención de logs
+## Manejo de errores
 
-Con el fin de mantener `detalle` idénticos entre todas las automatizaciones, el campo debe seguir una estructura de texto clara y consistente
+La estrategia vigente no aplica rollback funcional del negocio por defecto.
 
-**Recomendaciones:** 
+En caso de falla parcial:
 
-- `[INICIO]` → inicio de la ejecución
-- `[RESUMEN]` → métricas generales del proceso
-- `[SOURCE_START]` → inicio de extracción por host/sucursal
-- `[SOURCE_SUMMARY]` → métricas por sucursal dentro del host
-- `[SOURCE_ERROR]` → error operativo parcial por host/sucursal
-- `[INSERT]` → registros insertados
-- `[UPDATE]` → registros actualizados
-- `[DELETE]` → registros eliminados, si aplica
-- `[ERROR]` → errores detectados durante la ejecución
-- `[FIN]` → cierre del proceso con estado final
+- Los cambios exitosos ya aplicados se conservan.
+- Los errores se registran en `LOG_PROCESOS.detalle`.
+- El estado final debe reflejar el resultado real (`ADVERTENCIA` o `ERROR`).
 
-**Reglas**
+## Queries utiles
 
-- Utilizar mismo formato entre procesos
-- Redactar de forma clara y breve la acción tomada por el automatizador
-- Mantener `[RESUMEN]` global para compatibilidad de consultas históricas
-- En extracciones multi-host registrar siempre bloques `[SOURCE_*]` por trazabilidad operativa
-
-**Ejemplo**
-
-```bash
-[INICIO] 2026-04-10 17:13:19
-[RESUMEN] extraidos=14, deduplicados=10, inserts=10, updates=0, errores=0
-[INSERT] 26030005, 26030021, 26030020
-[UPDATE] 26020061 (2 campos)
- - 26020061.Patente: '' -> 'AI091HC'
-[FIN] EXITO
-```
-
-**Ejemplo con error**
-
-```bash
-[INICIO] 2026-04-14 11:05:12
-[RESUMEN] procesados=25, publicados=18, actualizados=5, errores=2
-
-[INSERT] VEH_1023, VEH_1045, VEH_1098
-[UPDATE] VEH_0871 (2 campos), VEH_0912 (1 campo)
- - VEH_0871.Precio: '12500000' -> '12350000'
- - VEH_0871.Disponibilidad: 'Reservado' -> 'Disponible'
- - VEH_0912.Kilometraje: '0' -> '15'
-
-[ERROR] VEH_1102: Error al publicar en API Web (HTTP 500 - Internal Server Error)
-[ERROR] VEH_1110: Timeout al intentar conexión con servicio de publicación
-
-[FIN] ERROR
-```
-
-## Extensión para extracción multi-host
-
-Cuando una automatización consulta múltiples servidores SQL Server en paralelo, el detalle debe incluir bloques por host/sucursal.
-
-**Ejemplo recomendado**
-
-```bash
-[INICIO] 2026-04-21 10:00:00
-[RESUMEN] extraidos=150, deduplicados=145, inserts=20, updates=8, errors=1
-[SOURCE_START] host_group=1 host=192.168.1.77 sucursales=FORD,HYUNDAI databases=ProyautMonti,ProyautAuto rango=20260421->20260421
-[SOURCE_SUMMARY] host_group=1 host=192.168.1.77 sucursal=FORD database=ProyautMonti extraidos=54
-[SOURCE_SUMMARY] host_group=1 host=192.168.1.77 sucursal=HYUNDAI database=ProyautAuto extraidos=41
-[SOURCE_START] host_group=2 host=192.168.11.12 sucursales=JEEP,FIAT databases=ProyautLand,ProyautPine rango=20260421->20260421
-[SOURCE_SUMMARY] host_group=2 host=192.168.11.12 sucursal=JEEP database=ProyautLand extraidos=29
-[SOURCE_ERROR] host_group=2 host=192.168.11.12 sucursales=JEEP,FIAT error=OperationalError: timeout
-[WARNING] [SOURCE_ERROR] host_group=2 host=192.168.11.12 sucursales=JEEP,FIAT error=OperationalError: timeout
-[FIN] ADVERTENCIA
-```
-
-# Manejo de errores
-
-Las automatizaciones no usaran rollback automático, en caso de fallo durante la ejecución de un proceso.
-
-En su lugar, se adopta el siguiente comportamiento en caso de errores:
-
-- Los cambios realizados correctamente se **mantienen**
-- Los errores ocurridos se registran en el log `LOG_PROCESOS.detalle`
-- El estado final de ejecución reflejará el resultado `ERROR` o `ADVERTENCIA`
-- La revisión y corrección queda a cargo del responsable de auditoría
-    
-    <aside>
-    💡
-    
-    Este comportamiento puede cambiar si se implementa un mecanismo de notificaciones.
-    
-    </aside>
-    
-
-## **Ejemplo**
-
-Un proceso puede:
-
-- Insertar correctamente varios registros
-- Fallar en algunos casos puntuales
-- Finalizar con estado `ERROR`
-
-En este escenario:
-
-- Los registros exitosos permanecen en el sistema
-- Los errores quedan documentados en el log
-- El encargado de auditoría o supervisión podrá identificar y corregir los casos fallidos
-
-# Queries de Auditoría
-
-## Ejecuciones del día
-
-Consultar procesos que se ejecutaron hoy, en qué estado finalizaro y cuál fue su resumen
+### Ejecuciones recientes
 
 ```sql
-SELECT 
+SELECT
     p.nombre_proceso,
     e.id_ejecucion,
     e.fecha_inicio,
     e.fecha_fin,
     e.estado,
     e.resumen
-FROM EJECUCION e
-JOIN PROCESOS p ON e.id_proceso = p.id_proceso
-WHERE DATE(e.fecha_inicio) = CURDATE()
-ORDER BY e.fecha_inicio DESC;
+FROM ejecucion e
+JOIN procesos p ON e.id_proceso = p.id_proceso
+ORDER BY e.fecha_inicio DESC
+LIMIT 100;
 ```
 
-## Ejecuciones con error
-
-Identificar rápidamente que procesos finalizaron con estado `ERROR`
+### Ejecuciones con error
 
 ```sql
-SELECT 
+SELECT
     p.nombre_proceso,
     e.id_ejecucion,
     e.fecha_inicio,
     e.fecha_fin,
     e.estado,
     e.resumen
-FROM EJECUCION e
-JOIN PROCESOS p ON e.id_proceso = p.id_proceso
+FROM ejecucion e
+JOIN procesos p ON e.id_proceso = p.id_proceso
 WHERE e.estado = 'ERROR'
 ORDER BY e.fecha_inicio DESC;
-
 ```
 
-## Ejecuciones con advertencia
-
-Identificar procesos que finalizaron con comportamiento parcial o con observaciones.
+### Ejecuciones con advertencia
 
 ```sql
-SELECT 
+SELECT
     p.nombre_proceso,
     e.id_ejecucion,
     e.fecha_inicio,
     e.fecha_fin,
     e.estado,
     e.resumen
-FROM EJECUCION e
-JOIN PROCESOS p ON e.id_proceso = p.id_proceso
+FROM ejecucion e
+JOIN procesos p ON e.id_proceso = p.id_proceso
 WHERE e.estado = 'ADVERTENCIA'
 ORDER BY e.fecha_inicio DESC;
 ```
 
-## Detalle completo de una ejecución
-
-Consultar log completo almacenado en `LOG_PROCESOS` para una ejecución puntual.
+### Detalle completo de una ejecucion (chunk-aware)
 
 ```sql
-SELECT 
-    p.nombre_proceso,
-    e.id_ejecucion,
-    e.fecha_inicio,
-    e.fecha_fin,
-    e.estado,
-    e.resumen,
+SELECT
+    l.id_log,
+    l.id_ejecucion,
     l.detalle
-FROM EJECUCION e
-JOIN PROCESOS p ON e.id_proceso = p.id_proceso
-JOIN LOG_PROCESOS l ON e.id_ejecucion = l.id_ejecucion
-WHERE e.id_ejecucion = 1;
+FROM log_procesos l
+WHERE l.id_ejecucion = 1
+ORDER BY l.id_log ASC;
 ```
 
-> Remplazar `id_ejecucion` de la que se quiere auditar
-> 
+Reemplazar `1` por el `id_ejecucion` a auditar.
 
-## Duración de ejecuciones
-
-Medir cuánto tardó cada proceso y detectar posibles problemas de performance
-
-### Duración de ejecuciones de hoy
+### Duracion de ejecuciones
 
 ```sql
-SELECT 
+SELECT
     p.nombre_proceso,
     e.id_ejecucion,
     e.fecha_inicio,
     e.fecha_fin,
     TIMESTAMPDIFF(SECOND, e.fecha_inicio, e.fecha_fin) AS duracion_segundos,
     e.estado
-FROM EJECUCION e
-JOIN PROCESOS p ON e.id_proceso = p.id_proceso
+FROM ejecucion e
+JOIN procesos p ON e.id_proceso = p.id_proceso
 WHERE e.fecha_fin IS NOT NULL
-ORDER BY e.fecha_inicio DESC;
-```
-
-### Duración de ejecuciones en una fecha específica
-
-```sql
-SELECT 
-    p.nombre_proceso,
-    e.id_ejecucion,
-    e.fecha_inicio,
-    e.fecha_fin,
-    TIMESTAMPDIFF(SECOND, e.fecha_inicio, e.fecha_fin) AS duracion_segundos,
-    e.estado
-FROM EJECUCION e
-JOIN PROCESOS p ON e.id_proceso = p.id_proceso
-WHERE e.fecha_fin IS NOT NULL
-  AND DATE(e.fecha_inicio) = '2026-04-14'
-ORDER BY e.fecha_inicio DESC;
-```
-
-> Remplazar `'2026-04-14'` por fecha a consultar
-> 
-
-### Duración de ejecuciones en un período de tiempo
-
-```sql
-SELECT 
-    p.nombre_proceso,
-    e.id_ejecucion,
-    e.fecha_inicio,
-    e.fecha_fin,
-    TIMESTAMPDIFF(SECOND, e.fecha_inicio, e.fecha_fin) AS duracion_segundos,
-    e.estado
-FROM EJECUCION e
-JOIN PROCESOS p ON e.id_proceso = p.id_proceso
-WHERE e.fecha_fin IS NOT NULL
-  AND e.fecha_inicio >= '2026-04-01 00:00:00'
-  AND e.fecha_inicio <  '2026-04-15 00:00:00'
 ORDER BY e.fecha_inicio DESC;
 ```
