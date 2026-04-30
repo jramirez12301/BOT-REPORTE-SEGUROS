@@ -116,6 +116,12 @@ BRANCH_SOURCES = [
         "database": "ProyautPine",
         "view": "dbo.Vista_Seguros",
     },
+    {
+        "sucursal_origen": "PEUGEOT",
+        "host_group": 2,
+        "database": "ProyautPeug",
+        "view": "dbo.Vista_Seguros",
+    },
 ]
 
 
@@ -130,6 +136,26 @@ COLUMN_ALIASES = {
     "FechaVenta": ["FechaVenta", "Fechaventa"],
     "FechaEntrega": ["FechaEntrega", "Fechaentrega"],
     "Sucursal_origen": ["Sucursal_origen", "sucursal_origen", "SUCURSAL_ORIGEN"],
+}
+
+SQLSERVER_UNION_COLLATION = "Modern_Spanish_CI_AS"
+SQLSERVER_TEXT_COLUMNS = {
+    "TipoVenta",
+    "Rubro",
+    "ClienteRazonSocial",
+    "CuitCuil",
+    "Email",
+    "Telefono",
+    "Domicilio",
+    "Localidad",
+    "Provincia",
+    "CodigoUnidad",
+    "Marca",
+    "MarcaModelo",
+    "Color",
+    "Vin",
+    "Patente",
+    "Vendedor",
 }
 
 
@@ -338,7 +364,15 @@ def build_sqlserver_select_expression(column_name: str) -> str:
     """Mapea columnas canonicas a expresiones SQL Server explicitas por vista."""
     if column_name == "NroSucursal":
         # La vista no define NroSucursal en todas las bases. Se conserva columna por compatibilidad.
-        return "CAST(NULL AS NVARCHAR(50)) AS [NroSucursal]"
+        return (
+            "CAST(NULL AS NVARCHAR(50)) "
+            f"COLLATE {SQLSERVER_UNION_COLLATION} AS [NroSucursal]"
+        )
+    if column_name in SQLSERVER_TEXT_COLUMNS:
+        return (
+            f"CAST(v.[{column_name}] AS NVARCHAR(4000)) "
+            f"COLLATE {SQLSERVER_UNION_COLLATION} AS [{column_name}]"
+        )
     return f"v.[{column_name}] AS [{column_name}]"
 
 
@@ -351,7 +385,7 @@ def build_branch_query_sql(source: dict, select_columns: list[str]) -> str:
     return f"""
 SELECT
     {columns_sql},
-    '{sucursal_origen}' AS Sucursal_origen
+    CAST('{sucursal_origen}' AS NVARCHAR(50)) COLLATE {SQLSERVER_UNION_COLLATION} AS Sucursal_origen
 FROM {database}.{view_name} AS v
 WHERE v.FechaPrereserva >= ?
   AND v.FechaPrereserva <= ?
@@ -686,12 +720,12 @@ def extract_host_group(
     start_date: str,
     end_date: str,
 ) -> tuple[pd.DataFrame, list[dict], str]:
-    """Extrae datos de un host usando UNION ALL local para sus sucursales."""
+    """Extrae datos de un host consultando cada sucursal por separado.
+
+    Nota: se evita UNION ALL entre bases para no depender de collations compatibles
+    entre databases distintas dentro del mismo host.
+    """
     select_columns = select_columns_without_source()
-    query = build_host_union_query(sources=sources, select_columns=select_columns)
-    params = []
-    for _ in sources:
-        params.extend([start_date, end_date])
 
     source_summaries = []
     source_names = ",".join(source["sucursal_origen"] for source in sources)
@@ -699,24 +733,35 @@ def extract_host_group(
 
     try:
         connection = create_sqlserver_connection_from_config(host_config)
-        cursor = connection.cursor()
-        cursor.execute(query, tuple(params))
-        rows = cursor.fetchall()
-        columns = [col[0] for col in cursor.description]
-        host_df = pd.DataFrame.from_records(rows, columns=columns)
-
+        extracted_frames: list[pd.DataFrame] = []
         for source in sources:
-            sucursal = source["sucursal_origen"]
-            source_count = int((host_df["Sucursal_origen"] == sucursal).sum()) if not host_df.empty else 0
+            query = build_branch_query_sql(source=source, select_columns=select_columns)
+            cursor = connection.cursor()
+            try:
+                cursor.execute(query, (start_date, end_date))
+                rows = cursor.fetchall()
+                columns = [col[0] for col in cursor.description]
+                source_df = pd.DataFrame.from_records(rows, columns=columns)
+            finally:
+                cursor.close()
+
+            extracted_frames.append(source_df)
+
             source_summaries.append(
                 {
                     "host_group": host_group,
                     "host": host_config["host"],
-                    "sucursal_origen": sucursal,
+                    "sucursal_origen": source["sucursal_origen"],
                     "database": source["database"],
-                    "rows": source_count,
+                    "rows": len(source_df),
                 }
             )
+
+        host_df = (
+            pd.concat(extracted_frames, ignore_index=True)
+            if extracted_frames
+            else pd.DataFrame(columns=SHEET_COLUMNS_DB)
+        )
 
         logging.info(
             "Extraccion SQL Server %s OK. Sucursales=%s registros=%s",
@@ -728,8 +773,6 @@ def extract_host_group(
     finally:
         if "connection" in locals():
             try:
-                if "cursor" in locals():
-                    cursor.close()
                 connection.close()
             except Exception:
                 pass
