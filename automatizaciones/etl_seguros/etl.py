@@ -80,6 +80,14 @@ SHEET_COLUMNS_SHEET = [
     for col in SHEET_COLUMNS_DB
 ]
 
+MANUAL_COLUMNS = [
+    "Primer contacto",
+    "Segundo contacto",
+    "Vendido / No vendido",
+]
+
+SHEET_COLUMNS_TOTAL = SHEET_COLUMNS_SHEET + MANUAL_COLUMNS
+
 
 # Mapeo de negocio por sucursal.
 # La infraestructura (hosts/credenciales) vive en .env y NO se ata a marcas.
@@ -527,6 +535,34 @@ def validate_sheet_header(header: list[str], expected_header: list[str]) -> None
             )
 
 
+def ensure_manual_headers(worksheet, header: list[str], sleep_seconds: float) -> list[str]:
+    """Garantiza columnas manuales al final sin romper hojas existentes."""
+    current_header = [normalize_cell_value(col) for col in header]
+    missing_manual = [col for col in MANUAL_COLUMNS if col not in current_header]
+    if not missing_manual:
+        return current_header
+
+    # Conserva columnas existentes y agrega solo faltantes al final.
+    start_col = len(current_header) + 1
+    end_col = start_col + len(missing_manual) - 1
+    start_a1 = rowcol_to_a1(1, start_col)
+    end_a1 = rowcol_to_a1(1, end_col)
+    header_range = f"{start_a1}:{end_a1}"
+
+    execute_with_retry(
+        action=lambda: worksheet.update(
+            range_name=header_range,
+            values=[missing_manual],
+            value_input_option="USER_ENTERED",
+        ),
+        action_name="alta automatica de columnas manuales",
+        sleep_seconds=sleep_seconds,
+    )
+
+    updated_header = worksheet.row_values(1)
+    return [normalize_cell_value(col) for col in updated_header]
+
+
 def resolve_source_value(row: pd.Series, target_column: str) -> str:
     """Resuelve valor por columna usando aliases tolerantes entre vistas."""
     candidates = COLUMN_ALIASES.get(target_column, [target_column])
@@ -947,7 +983,7 @@ def format_date_for_sheet(column_name: str, value, warned_invalid_dates: set[tup
     return text
 
 
-def read_sheet_snapshot(worksheet, sleep_seconds: float) -> tuple[dict, dict]:
+def read_sheet_snapshot(worksheet, sleep_seconds: float) -> tuple[dict, dict, dict]:
     """Lee la hoja, valida encabezado y arma índice Prereserva->fila."""
     try:
         all_values = worksheet.get_all_values()
@@ -955,12 +991,12 @@ def read_sheet_snapshot(worksheet, sleep_seconds: float) -> tuple[dict, dict]:
             logging.info("La hoja esta vacia. Se crea encabezado canonico automaticamente.")
 
             # Si es una hoja nueva, inicializamos la fila de encabezados.
-            header_end = rowcol_to_a1(1, len(SHEET_COLUMNS_SHEET))
+            header_end = rowcol_to_a1(1, len(SHEET_COLUMNS_TOTAL))
             header_range = f"A1:{header_end}"
             execute_with_retry(
                 action=lambda: worksheet.update(
                     range_name=header_range,
-                    values=[SHEET_COLUMNS_SHEET],
+                    values=[SHEET_COLUMNS_TOTAL],
                     value_input_option="USER_ENTERED",
                 ),
                 action_name="creacion de encabezado en hoja vacia",
@@ -974,7 +1010,7 @@ def read_sheet_snapshot(worksheet, sleep_seconds: float) -> tuple[dict, dict]:
                     action_name="freeze encabezado inicial",
                     sleep_seconds=sleep_seconds,
                 )
-                filter_end = rowcol_to_a1(1, len(SHEET_COLUMNS_SHEET))
+                filter_end = rowcol_to_a1(1, len(SHEET_COLUMNS_TOTAL))
                 execute_with_retry(
                     action=lambda: worksheet.set_basic_filter(f"A1:{filter_end}"),
                     action_name="filtro inicial",
@@ -986,7 +1022,7 @@ def read_sheet_snapshot(worksheet, sleep_seconds: float) -> tuple[dict, dict]:
                     ui_exc,
                 )
 
-            return {}, {}
+            return {}, {}, {}
 
         # Caso especial: hay filas en la hoja pero la fila 1 esta vacia.
         # Lo tratamos como hoja sin encabezado y la inicializamos.
@@ -996,12 +1032,12 @@ def read_sheet_snapshot(worksheet, sleep_seconds: float) -> tuple[dict, dict]:
                 "Se detecto fila de encabezado vacia. Se crea encabezado canonico automaticamente."
             )
 
-            header_end = rowcol_to_a1(1, len(SHEET_COLUMNS_SHEET))
+            header_end = rowcol_to_a1(1, len(SHEET_COLUMNS_TOTAL))
             header_range = f"A1:{header_end}"
             execute_with_retry(
                 action=lambda: worksheet.update(
                     range_name=header_range,
-                    values=[SHEET_COLUMNS_SHEET],
+                    values=[SHEET_COLUMNS_TOTAL],
                     value_input_option="USER_ENTERED",
                 ),
                 action_name="creacion de encabezado en fila 1 vacia",
@@ -1014,7 +1050,7 @@ def read_sheet_snapshot(worksheet, sleep_seconds: float) -> tuple[dict, dict]:
                     action_name="freeze encabezado inicial",
                     sleep_seconds=sleep_seconds,
                 )
-                filter_end = rowcol_to_a1(1, len(SHEET_COLUMNS_SHEET))
+                filter_end = rowcol_to_a1(1, len(SHEET_COLUMNS_TOTAL))
                 execute_with_retry(
                     action=lambda: worksheet.set_basic_filter(f"A1:{filter_end}"),
                     action_name="filtro inicial",
@@ -1026,11 +1062,12 @@ def read_sheet_snapshot(worksheet, sleep_seconds: float) -> tuple[dict, dict]:
                     ui_exc,
                 )
 
-            return {}, {}
+            return {}, {}, {}
 
         header = [normalize_cell_value(col) for col in all_values[0]]
         expected_header = SHEET_COLUMNS_SHEET
         validate_sheet_header(header, expected_header)
+        header = ensure_manual_headers(worksheet=worksheet, header=header, sleep_seconds=sleep_seconds)
 
         if header[: len(expected_header)] != expected_header:
             logging.info(
@@ -1040,14 +1077,18 @@ def read_sheet_snapshot(worksheet, sleep_seconds: float) -> tuple[dict, dict]:
 
         index_by_entity = {}
         row_values_by_entity = {}
+        manual_by_entity = {}
         duplicates = 0
 
         idx_prereserva = SHEET_COLUMNS_DB.index("Prereserva")
         idx_origen = SHEET_COLUMNS_DB.index("Sucursal_origen")
+        idx_primer_contacto = len(SHEET_COLUMNS_DB)
+        idx_segundo_contacto = len(SHEET_COLUMNS_DB) + 1
+        idx_vendido = len(SHEET_COLUMNS_DB) + 2
 
         for row_number, row in enumerate(all_values[1:], start=2):
-            row_27 = (row + [""] * len(SHEET_COLUMNS_SHEET))[: len(SHEET_COLUMNS_SHEET)]
-            normalized_row = [normalize_cell_value(value) for value in row_27]
+            row_total = (row + [""] * len(SHEET_COLUMNS_TOTAL))[: len(SHEET_COLUMNS_TOTAL)]
+            normalized_row = [normalize_cell_value(value) for value in row_total]
             prereserva = normalized_row[idx_prereserva]
             sucursal_origen = normalized_row[idx_origen]
             entity_key = build_entity_key(prereserva, sucursal_origen)
@@ -1059,6 +1100,11 @@ def read_sheet_snapshot(worksheet, sleep_seconds: float) -> tuple[dict, dict]:
 
             index_by_entity[entity_key] = row_number
             row_values_by_entity[entity_key] = normalized_row
+            manual_by_entity[entity_key] = [
+                normalized_row[idx_primer_contacto],
+                normalized_row[idx_segundo_contacto],
+                normalized_row[idx_vendido],
+            ]
 
         if duplicates > 0:
             logging.warning(
@@ -1067,13 +1113,18 @@ def read_sheet_snapshot(worksheet, sleep_seconds: float) -> tuple[dict, dict]:
             )
 
         logging.info("Estado de la hoja cargado. Filas indexadas=%s", len(index_by_entity))
-        return index_by_entity, row_values_by_entity
+        return index_by_entity, row_values_by_entity, manual_by_entity
     except Exception as e:
         logging.error("Error al leer snapshot de Google Sheets: %s", e, exc_info=True)
         raise
 
 
-def classify_records(df: pd.DataFrame, sheet_index: dict, sheet_rows: dict) -> tuple[list, list, int]:
+def classify_records(
+    df: pd.DataFrame,
+    sheet_index: dict,
+    sheet_rows: dict,
+    manual_by_entity: dict,
+) -> tuple[list, list, int]:
     """Clasifica registros en insercion, actualizacion y sin cambios."""
     if df.empty:
         return [], [], 0
@@ -1087,13 +1138,15 @@ def classify_records(df: pd.DataFrame, sheet_index: dict, sheet_rows: dict) -> t
     idx_origen = SHEET_COLUMNS_DB.index("Sucursal_origen")
 
     for _, row in df.iterrows():
-        mysql_row = [
+        mysql_row_base = [
             format_date_for_sheet(col, resolve_source_value(row, col), warned_invalid_dates)
             for col in SHEET_COLUMNS_DB
         ]
-        prereserva = mysql_row[idx_prereserva]
-        sucursal_origen = mysql_row[idx_origen]
+        prereserva = mysql_row_base[idx_prereserva]
+        sucursal_origen = mysql_row_base[idx_origen]
         entity_key = build_entity_key(prereserva, sucursal_origen)
+        manual_values = manual_by_entity.get(entity_key, ["", "", ""])
+        mysql_row = mysql_row_base + manual_values
 
         if not prereserva:
             logging.warning("Registro omitido: Prereserva vacio tras normalizacion.")
@@ -1107,9 +1160,9 @@ def classify_records(df: pd.DataFrame, sheet_index: dict, sheet_rows: dict) -> t
             logging.info("Entidad %s -> INSERCION", entity_key)
             continue
 
-        sheet_row = sheet_rows.get(entity_key, [""] * len(SHEET_COLUMNS_SHEET))
+        sheet_row = sheet_rows.get(entity_key, [""] * len(SHEET_COLUMNS_TOTAL))
         changed_fields = []
-        for column_name, old_value, new_value in zip(SHEET_COLUMNS_DB, sheet_row, mysql_row):
+        for column_name, old_value, new_value in zip(SHEET_COLUMNS_DB, sheet_row, mysql_row_base):
             old_cmp = normalize_for_comparison(column_name, old_value)
             new_cmp = normalize_for_comparison(column_name, new_value)
             if old_cmp != new_cmp:
@@ -1184,7 +1237,7 @@ def batch_update_existing_rows(worksheet, updates: list, batch_size: int, sleep_
             for item in batch:
                 row_number = int(item["row_number"])
                 start_a1 = rowcol_to_a1(row_number, 1)
-                end_a1 = rowcol_to_a1(row_number, len(SHEET_COLUMNS_SHEET))
+                end_a1 = rowcol_to_a1(row_number, len(SHEET_COLUMNS_TOTAL))
                 range_a1 = f"{start_a1}:{end_a1}"
                 data.append({"range": range_a1, "values": [item["values"]]})
 
@@ -1235,7 +1288,7 @@ def ensure_sheet_filter(worksheet, total_data_rows: int, sleep_seconds: float) -
     """Aplica freeze/filtro como mejora visual sin bloquear el proceso."""
     try:
         last_row = max(1, int(total_data_rows) + 1)
-        filter_end = rowcol_to_a1(last_row, len(SHEET_COLUMNS_SHEET))
+        filter_end = rowcol_to_a1(last_row, len(SHEET_COLUMNS_TOTAL))
         filter_range = f"A1:{filter_end}"
         execute_with_retry(
             action=lambda: worksheet.freeze(rows=1),
@@ -1360,7 +1413,7 @@ def main():
         print("[INFO] Conexion con Google Sheets OK.")
 
         # Validamos encabezado al inicio. Si la hoja esta vacia, lo crea automaticamente.
-        sheet_index, sheet_rows = read_sheet_snapshot(
+        sheet_index, sheet_rows, manual_by_entity = read_sheet_snapshot(
             worksheet=worksheet,
             sleep_seconds=runtime["sleep_seconds"],
         )
@@ -1441,7 +1494,12 @@ def main():
             print(f"[INFO] Registros luego de deduplicar: {len(df_clean)}")
 
             # 4) Clasificar contra el estado actual de la hoja.
-            append_rows_payload, updates_payload, noop_count = classify_records(df_clean, sheet_index, sheet_rows)
+            append_rows_payload, updates_payload, noop_count = classify_records(
+                df_clean,
+                sheet_index,
+                sheet_rows,
+                manual_by_entity,
+            )
             audit.set_metric("noop", noop_count)
             print(
                 f"[INFO] Clasificacion: append={len(append_rows_payload)} "
