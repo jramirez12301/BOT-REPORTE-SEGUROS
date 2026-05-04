@@ -142,6 +142,7 @@ class AuditLogger:
 
         summary = self.build_summary()
         detail_chunks = self.build_detail_chunks()
+        should_persist_detail = self._should_persist_detail()
 
         conn = self.db_conn_factory()
         try:
@@ -167,11 +168,15 @@ class AuditLogger:
 
                 id_ejecucion = int(cursor.lastrowid)
 
-                for chunk in detail_chunks:
-                    cursor.execute(
-                        "INSERT INTO log_procesos (id_ejecucion, detalle) VALUES (%s, %s)",
-                        (id_ejecucion, chunk),
-                    )
+                if should_persist_detail:
+                    for index, chunk in enumerate(detail_chunks, start=1):
+                        cursor.execute(
+                            (
+                                "INSERT INTO log_procesos (id_ejecucion, detalle, orden_bloque) "
+                                "VALUES (%s, %s, %s)"
+                            ),
+                            (id_ejecucion, chunk, index),
+                        )
 
                 conn.commit()
                 self._id_ejecucion = id_ejecucion
@@ -304,6 +309,15 @@ class AuditLogger:
         if self._warning_lines:
             return "ADVERTENCIA"
         return "EXITO"
+
+    def _should_persist_detail(self) -> bool:
+        if self.estado != "EXITO":
+            return True
+        if self._warning_lines or self._error_lines:
+            return True
+        if self._insert_ids or self._update_headers or self._delete_ids:
+            return True
+        return False
 
     def _now(self) -> datetime:
         return datetime.now(ZoneInfo(self.timezone_name))
