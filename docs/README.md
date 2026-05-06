@@ -255,11 +255,11 @@ crontab -e
 2. Agregar jobs con `flock` para evitar corridas superpuestas:
 
 ```cron
-# Ejecuta cada 30 minutos entre 08:00 y 17:30 (Lunes a Viernes)
-0,30 8-17 * * 1-5 /usr/bin/flock -n /tmp/etl_seguros.lock -c 'cd /home/Entorno && /usr/bin/docker compose -f deploy/etl_seguros/docker-compose.yml run --rm etl_seguros_bot >> runtime/etl_seguros/cron.log 2>&1'
+# Ejecuta cada 30 minutos entre 08:00 y 17:30 (Lunes a Viernes) -> en caso de horarios argentina, revisar cronjob
+0,30 11-20 * * 1-5 /usr/bin/flock -n /tmp/etl_seguros.lock -c 'cd /var/www/seguros && /usr/bin/docker compose -f deploy/etl_seguros/docker-compose.yml run --rm etl_seguros_bot >> runtime/etl_seguros/cron.log 2>&1'
 
 # Ejecuta la ultima pasada exactamente a las 18:00 (Lunes a Viernes)
-0 18 * * 1-5 /usr/bin/flock -n /tmp/etl_seguros.lock -c 'cd /home/Entorno && /usr/bin/docker compose -f deploy/etl_seguros/docker-compose.yml run --rm etl_seguros_bot >> runtime/etl_seguros/cron.log 2>&1'
+0 21 * * 1-5 /usr/bin/flock -n /tmp/etl_seguros.lock -c 'cd /var/www/seguros && /usr/bin/docker compose -f deploy/etl_seguros/docker-compose.yml run --rm etl_seguros_bot --start-date 20260101 >> runtime/etl_seguros/cron.log 2>&1'
 ```
 
 Notas:
